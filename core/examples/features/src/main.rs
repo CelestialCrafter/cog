@@ -5,13 +5,13 @@ use std::{
 
 use cog_core::{
     runtime::{init, RuntimeMessage},
+    ui::Border,
     AppMessage,
 };
 use crossterm::{
-    cursor,
     event::{Event, KeyCode, KeyEvent, KeyModifiers},
     queue,
-    style::Print,
+    style::{ContentStyle, Stylize},
 };
 use eyre::Result;
 
@@ -56,14 +56,13 @@ impl cog_core::Model<Message> for MainModel {
     }
 
     fn view(&self, mut writer: impl Write) -> Result<()> {
-        queue!(
-            writer,
-            Print(format!("terminal event: {:?}", self.last_event)),
-            cursor::MoveToNextLine(1),
-            Print(format!("delayed count: {}", self.counter)),
-            cursor::MoveToNextLine(1),
-            Print(format!("initialized: {}", self.initialized))
-        )?;
+        let text = format!(
+            "terminal event: {:?}
+delayed count: {}
+initialized: {}",
+            self.last_event, self.counter, self.initialized
+        );
+        queue!(writer, Border::normal(text, ContentStyle::new().red()))?;
 
         Ok(())
     }
