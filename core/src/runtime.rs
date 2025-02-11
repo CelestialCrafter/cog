@@ -56,7 +56,9 @@ pub async fn init<T: Send + 'static>(mut writer: impl Write, model: impl Model<T
     terminal::enable_raw_mode()?;
     execute!(
         writer,
+        cursor::Hide,
         terminal::EnterAlternateScreen,
+        terminal::DisableLineWrap,
         event::EnableMouseCapture
     )?;
 
@@ -65,6 +67,7 @@ pub async fn init<T: Send + 'static>(mut writer: impl Write, model: impl Model<T
     execute!(
         writer,
         cursor::Show,
+        terminal::EnableLineWrap,
         event::DisableMouseCapture,
         terminal::LeaveAlternateScreen,
     )?;

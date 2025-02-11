@@ -5,6 +5,7 @@ use eyre::Result;
 use runtime::RuntimeMessage;
 
 pub mod runtime;
+pub mod ui;
 
 pub trait Model<T> {
     fn update(&mut self, message: AppMessage<T>) -> RuntimeMessage<T>;
