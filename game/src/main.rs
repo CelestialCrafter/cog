@@ -1,76 +1,68 @@
-use std::{io::Write, rc::Rc};
+use std::{cell::RefCell, io::Write, rc::Rc};
 
 use cog_core::{
+    generic_passthrough,
     runtime::{self, RuntimeMessage},
     AppMessage, Model,
 };
 use crossterm::event;
 use eyre::Result;
+use inventory::{InventoryMessage, InventoryModel};
 use store::Store;
 use world::{WorldMessage, WorldModel};
 
+pub mod inventory;
 pub mod store;
 pub mod world;
 
 enum MainMessage {
     World(WorldMessage),
-}
-
-impl From<WorldMessage> for MainMessage {
-    fn from(message: WorldMessage) -> Self {
-        MainMessage::World(message)
-    }
+    Inventory(InventoryMessage),
 }
 
 struct MainModel {
     world_model: WorldModel,
+    inventory_model: InventoryModel,
 }
 
 impl MainModel {
-    pub fn new(store: Rc<Store>) -> Self {
+    pub fn new(store: Rc<RefCell<Store>>) -> Self {
         Self {
-            world_model: WorldModel::new(store),
+            world_model: WorldModel::new(store.clone()),
+            inventory_model: InventoryModel::new(store),
         }
     }
 }
 
 impl Model<MainMessage> for MainModel {
-    fn view(&self, writer: impl Write) -> Result<()> {
-        self.world_model.view(writer)
+    fn view(&self, mut writer: impl Write) -> Result<()> {
+        self.world_model.view(&mut writer)?;
+        self.inventory_model.view(writer)?;
+
+        Ok(())
     }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
         let main_msg = match message {
             AppMessage::Event(event::Event::Key(event::KeyEvent {
-                code: event::KeyCode::Char('c'),
-                modifiers,
+                code: event::KeyCode::Esc | event::KeyCode::Char('q'),
                 ..
-            })) => {
-                if modifiers.contains(event::KeyModifiers::CONTROL) {
-                    Some(RuntimeMessage::Exit)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
-        .unwrap_or(RuntimeMessage::Empty);
+            })) => RuntimeMessage::Exit,
+            _ => RuntimeMessage::Empty,
+        };
 
-        let world_msg = self
-            .world_model
-            .update(match message {
-                AppMessage::Init => AppMessage::Init,
-                AppMessage::Event(event) => AppMessage::Event(event),
-                AppMessage::App(MainMessage::World(message)) => AppMessage::App(message),
-            })
-            .map(MainMessage::World);
+        let msgs = generic_passthrough!(
+            message,
+            (MainMessage::Inventory, self.inventory_model),
+            (MainMessage::World, self.world_model)
+        );
 
-        RuntimeMessage::Batch(vec![main_msg, world_msg])
+        RuntimeMessage::Batch(vec![main_msg, msgs])
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let store = Rc::new(Store::new(44));
+    let store = Rc::new(RefCell::new(Store::new(44)));
     runtime::init::<MainMessage>(MainModel::new(store)).await
 }

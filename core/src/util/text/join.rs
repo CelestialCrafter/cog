@@ -1,4 +1,5 @@
 use super::{
+    ansi::strip,
     border::Border,
     size::{height, width},
 };
@@ -48,9 +49,9 @@ pub fn vertical(pos: f32, strings: &Vec<String>) -> String {
         _ => (),
     };
 
-    let max_width = strings
+    let max_width: usize = strings
         .iter()
-        .flat_map(|s| s.lines().map(|line| width(line)))
+        .flat_map(|s| strip(s).lines().map(|line| width(line)).collect::<Vec<_>>())
         .max()
         .unwrap_or(0);
 

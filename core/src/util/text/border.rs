@@ -1,4 +1,4 @@
-use crossterm::style::{Attributes, Color, ContentStyle};
+use crossterm::style::{Attributes, Color, ContentStyle, Stylize};
 
 use super::{ansi::strip, size::width};
 
@@ -144,11 +144,12 @@ impl<'a> Border<'a> {
         let line_length = max_width + self.ml + self.mr;
         let mut output = String::with_capacity(total_lines * line_length);
 
+        let stylize = |content: String, style: ContentStyle| style.apply(content).to_string();
         // top
         let top = (
-            &self.tl.repeat(self.ml),
-            &self.t.repeat(max_width),
-            &self.tr.repeat(self.mr),
+            &stylize(self.tl.repeat(self.ml), self.st),
+            &stylize(self.t.repeat(max_width), self.st),
+            &stylize(self.tr.repeat(self.mr), self.st),
         );
 
         for _ in 0..self.mt {
@@ -158,12 +159,16 @@ impl<'a> Border<'a> {
             output.push('\n');
         }
 
-        // left/right
+        // sides
+        let sides = (
+            &stylize(self.l.repeat(self.ml), self.sl),
+            &stylize(self.r.repeat(self.mr), self.sr),
+        );
         for (i, (line, stripped_line)) in lines.iter().zip(stripped_lines).enumerate() {
-            output.push_str(&self.l.repeat(self.ml));
+            output.push_str(sides.0);
             output.push_str(line);
             output.push_str(&" ".repeat(max_width - stripped_line.len()));
-            output.push_str(&self.r.repeat(self.mr));
+            output.push_str(sides.1);
             if i < lines.len() - 1 {
                 output.push('\n');
             }
@@ -171,9 +176,9 @@ impl<'a> Border<'a> {
 
         // bottom
         let bottom = (
-            &self.bl.repeat(self.ml),
-            &self.b.repeat(max_width),
-            &self.br.repeat(self.mr),
+            &stylize(self.bl.repeat(self.ml), self.sb),
+            &stylize(self.b.repeat(max_width), self.sb),
+            &stylize(self.br.repeat(self.mr), self.sb),
         );
 
         for _ in 0..self.mb {
