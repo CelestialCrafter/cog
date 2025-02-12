@@ -19,6 +19,27 @@ pub enum RuntimeMessage<T> {
     App(AppMessage<T>),
 }
 
+impl<T: 'static> RuntimeMessage<T> {
+    // Add a method to map the inner type
+    pub fn map<U>(self, f: impl FnOnce(T) -> U + Send + 'static + Clone) -> RuntimeMessage<U> {
+        match self {
+            RuntimeMessage::Exit => RuntimeMessage::Exit,
+            RuntimeMessage::Empty => RuntimeMessage::Empty,
+            RuntimeMessage::Batch(msgs) => {
+                RuntimeMessage::Batch(msgs.into_iter().map(|m| m.map(f.clone())).collect())
+            }
+            RuntimeMessage::App(msg) => RuntimeMessage::App(match msg {
+                AppMessage::Init => AppMessage::Init,
+                AppMessage::Event(event) => AppMessage::Event(event),
+                AppMessage::App(msg) => AppMessage::App(f(msg)),
+            }),
+            RuntimeMessage::Task(task) => {
+                RuntimeMessage::Task(Box::pin(async move { task.await.map(f) }))
+            }
+        }
+    }
+}
+
 async fn event_loop<T: Send + 'static>(
     mut writer: impl Write,
     mut model: impl Model<T>,
