@@ -1,4 +1,7 @@
-use std::io::Write;
+use std::{
+    io::{stdout, Write},
+    panic,
+};
 
 use crossterm::{cursor, event, execute, queue, terminal};
 use eyre::Result;
@@ -40,10 +43,7 @@ impl<T: 'static> RuntimeMessage<T> {
     }
 }
 
-async fn event_loop<T: Send + 'static>(
-    mut writer: impl Write,
-    mut model: impl Model<T>,
-) -> Result<()> {
+async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
     let (mut msg_tx, msgs) = mpsc::unbounded();
     let msgs = msgs.map(|m| Ok(m));
     let events =
@@ -52,6 +52,14 @@ async fn event_loop<T: Send + 'static>(
 
     msg_tx.send(RuntimeMessage::App(AppMessage::Init)).await?;
 
+    let (c, r) = terminal::size()?;
+    msg_tx
+        .send(RuntimeMessage::App(AppMessage::Event(
+            event::Event::Resize(c, r),
+        )))
+        .await?;
+
+    let mut writer = stdout();
     while let Some(message) = combined.next().await {
         let msg = message?;
         match msg {
@@ -91,25 +99,30 @@ async fn event_loop<T: Send + 'static>(
     Ok(())
 }
 
-pub async fn init<T: Send + 'static>(mut writer: impl Write, model: impl Model<T>) -> Result<()> {
+pub async fn init<T: Send + 'static>(model: impl Model<T>) -> Result<()> {
     terminal::enable_raw_mode()?;
+
     execute!(
-        writer,
+        stdout(),
         cursor::Hide,
         terminal::EnterAlternateScreen,
         terminal::DisableLineWrap,
         event::EnableMouseCapture
     )?;
 
-    let result = event_loop(&mut writer, model).await;
+    let original_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        let _ = execute!(
+            stdout(),
+            cursor::Show,
+            terminal::EnableLineWrap,
+            event::DisableMouseCapture,
+            terminal::LeaveAlternateScreen,
+        );
+        let _ = terminal::disable_raw_mode();
 
-    execute!(
-        writer,
-        cursor::Show,
-        terminal::EnableLineWrap,
-        event::DisableMouseCapture,
-        terminal::LeaveAlternateScreen,
-    )?;
-    terminal::disable_raw_mode()?;
-    result
+        original_hook(info);
+    }));
+
+    event_loop(model).await
 }

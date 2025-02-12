@@ -1,9 +1,9 @@
-use std::{
-    io::{stdout, Write},
-    rc::Rc,
-};
+use std::{io::Write, rc::Rc};
 
-use cog_core::{runtime::RuntimeMessage, AppMessage, Model};
+use cog_core::{
+    runtime::{self, RuntimeMessage},
+    AppMessage, Model,
+};
 use crossterm::event;
 use eyre::Result;
 use store::Store;
@@ -40,29 +40,37 @@ impl Model<MainMessage> for MainModel {
     }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
-        match message {
+        let main_msg = match message {
             AppMessage::Event(event::Event::Key(event::KeyEvent {
                 code: event::KeyCode::Char('c'),
                 modifiers,
                 ..
             })) => {
                 if modifiers.contains(event::KeyModifiers::CONTROL) {
-                    RuntimeMessage::Exit
+                    Some(RuntimeMessage::Exit)
                 } else {
-                    RuntimeMessage::Empty
+                    None
                 }
             }
-            AppMessage::Init => self
-                .world_model
-                .update(AppMessage::Init)
-                .map(MainMessage::World),
-            _ => RuntimeMessage::Empty,
+            _ => None,
         }
+        .unwrap_or(RuntimeMessage::Empty);
+
+        let world_msg = self
+            .world_model
+            .update(match message {
+                AppMessage::Init => AppMessage::Init,
+                AppMessage::Event(event) => AppMessage::Event(event),
+                AppMessage::App(MainMessage::World(message)) => AppMessage::App(message),
+            })
+            .map(MainMessage::World);
+
+        RuntimeMessage::Batch(vec![main_msg, world_msg])
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let store = Rc::new(Store::new(44));
-    cog_core::runtime::init::<MainMessage>(stdout(), MainModel::new(store)).await
+    runtime::init::<MainMessage>(MainModel::new(store)).await
 }
