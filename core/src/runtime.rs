@@ -2,13 +2,19 @@ use std::io::Write;
 
 use crossterm::{cursor, event, execute, queue, terminal};
 use eyre::Result;
-use futures::{channel::mpsc, future::BoxFuture, stream::select, SinkExt, StreamExt};
+use futures::{
+    channel::mpsc::{self, SendError},
+    future::BoxFuture,
+    stream::{iter, select},
+    SinkExt, StreamExt,
+};
 
 use crate::{AppMessage, Model};
 
 pub enum RuntimeMessage<T> {
     Empty,
     Exit,
+    Batch(Vec<RuntimeMessage<T>>),
     Task(BoxFuture<'static, RuntimeMessage<T>>),
     App(AppMessage<T>),
 }
@@ -30,6 +36,18 @@ async fn event_loop<T: Send + 'static>(
         match msg {
             RuntimeMessage::Exit => break,
             RuntimeMessage::Empty => (),
+            RuntimeMessage::Batch(msgs) => {
+                let mut msg_tx = &msg_tx;
+                iter(msgs.into_iter())
+                    .fold(Ok(()), |acc: Result<_, SendError>, x| async move {
+                        if let Err(_) = acc {
+                            acc
+                        } else {
+                            msg_tx.send(x).await.map(|_| ())
+                        }
+                    })
+                    .await?;
+            }
             RuntimeMessage::App(msg) => {
                 let out_msg = model.update(msg);
                 msg_tx.send(out_msg).await?;
