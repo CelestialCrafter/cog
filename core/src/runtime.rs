@@ -99,6 +99,19 @@ async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
     Ok(())
 }
 
+pub fn cleanup() -> Result<()> {
+    execute!(
+        stdout(),
+        cursor::Show,
+        terminal::EnableLineWrap,
+        event::DisableMouseCapture,
+        terminal::LeaveAlternateScreen,
+    )?;
+    terminal::disable_raw_mode()?;
+
+    Ok(())
+}
+
 pub async fn init<T: Send + 'static>(model: impl Model<T>) -> Result<()> {
     terminal::enable_raw_mode()?;
 
@@ -112,17 +125,11 @@ pub async fn init<T: Send + 'static>(model: impl Model<T>) -> Result<()> {
 
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
-        let _ = execute!(
-            stdout(),
-            cursor::Show,
-            terminal::EnableLineWrap,
-            event::DisableMouseCapture,
-            terminal::LeaveAlternateScreen,
-        );
-        let _ = terminal::disable_raw_mode();
-
+        let _ = cleanup();
         original_hook(info);
     }));
 
-    event_loop(model).await
+    let event_loop = event_loop(model).await;
+    cleanup()?;
+    event_loop
 }
