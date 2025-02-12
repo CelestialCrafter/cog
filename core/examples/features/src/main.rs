@@ -45,7 +45,13 @@ impl cog_core::Model<Message> for MainModel {
                 self.last_event = Some(event);
                 return RuntimeMessage::Task(Box::pin(async {
                     tokio::time::sleep(Duration::from_secs(1)).await;
-                    RuntimeMessage::App(AppMessage::App(Message::Increment(1)))
+                    let batch = vec![()]
+                        .into_iter()
+                        .cycle()
+                        .take(10)
+                        .map(|_| RuntimeMessage::App(AppMessage::App(Message::Increment(1))))
+                        .collect();
+                    RuntimeMessage::Batch(batch)
                 }));
             }
             AppMessage::App(Message::Increment(amount)) => self.counter += amount,
@@ -58,7 +64,7 @@ impl cog_core::Model<Message> for MainModel {
     fn view(&self, mut writer: impl Write) -> Result<()> {
         let text = format!(
             "terminal event: {:?}
-delayed count: {}
+delayed count (batched): {}
 initialized: {}",
             self.last_event, self.counter, self.initialized
         );

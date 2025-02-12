@@ -12,7 +12,7 @@ pub trait Model<T> {
     fn view(&self, writer: impl Write) -> Result<()>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AppMessage<T> {
     Event(Event),
     App(T),
