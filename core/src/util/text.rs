@@ -1,15 +1,27 @@
 use std::fmt::{Display, Result, Write};
 
+use crossterm::style::{ContentStyle, StyledContent};
+
 use crossterm::{
-    style::{ContentStyle, StyledContent},
+    cursor::{MoveDown, MoveLeft},
+    style::Print,
     Command,
 };
 
-use crate::ui::text::PrintLines;
+pub struct PrintLines<T: Display>(pub T);
+impl<T: Display> Command for PrintLines<T> {
+    fn write_ansi(&self, f: &mut impl Write) -> Result {
+        for line in self.0.to_string().split('\n') {
+            Print(line).write_ansi(f)?;
+            MoveDown(1).write_ansi(f)?;
+            MoveLeft(line.len() as u16).write_ansi(f)?;
+        }
 
-pub mod text;
+        Ok(())
+    }
+}
 
-pub struct Border {
+pub struct BorderedPrintLines {
     inner: String,
     style: ContentStyle,
     h: char,
@@ -20,7 +32,7 @@ pub struct Border {
     br: char,
 }
 
-impl Border {
+impl BorderedPrintLines {
     pub fn normal(inner: String, style: ContentStyle) -> Self {
         Self {
             inner,
@@ -52,7 +64,7 @@ impl Border {
     }
 }
 
-impl Command for Border {
+impl Command for BorderedPrintLines {
     fn write_ansi(&self, f: &mut impl Write) -> Result {
         let split = self.inner.split('\n');
         let max_len = split

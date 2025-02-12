@@ -23,7 +23,6 @@ pub enum RuntimeMessage<T> {
 }
 
 impl<T: 'static> RuntimeMessage<T> {
-    // Add a method to map the inner type
     pub fn map<U>(self, f: impl FnOnce(T) -> U + Send + 'static + Clone) -> RuntimeMessage<U> {
         match self {
             RuntimeMessage::Exit => RuntimeMessage::Exit,
@@ -31,14 +30,14 @@ impl<T: 'static> RuntimeMessage<T> {
             RuntimeMessage::Batch(msgs) => {
                 RuntimeMessage::Batch(msgs.into_iter().map(|m| m.map(f.clone())).collect())
             }
+            RuntimeMessage::Task(task) => {
+                RuntimeMessage::Task(Box::pin(async move { task.await.map(f) }))
+            }
             RuntimeMessage::App(msg) => RuntimeMessage::App(match msg {
                 AppMessage::Init => AppMessage::Init,
                 AppMessage::Event(event) => AppMessage::Event(event),
                 AppMessage::App(msg) => AppMessage::App(f(msg)),
             }),
-            RuntimeMessage::Task(task) => {
-                RuntimeMessage::Task(Box::pin(async move { task.await.map(f) }))
-            }
         }
     }
 }
