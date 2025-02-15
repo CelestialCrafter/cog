@@ -1,15 +1,15 @@
-use std::{cell::RefCell, io::Write, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use cells::CellId;
 use cog_core::{runtime::RuntimeMessage, AppMessage, Model};
-use crossterm::{
-    cursor::MoveToNextLine,
-    event::{Event, KeyCode, KeyEvent},
-    queue,
-    style::{Color, PrintStyledContent, Stylize},
-};
-use eyre::Result;
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ndarray::s;
+use ratatui::{
+    style::{Color, Style},
+    text::{Line, Span},
+    widgets::Paragraph,
+    Frame,
+};
 
 use crate::store::Store;
 
@@ -69,7 +69,7 @@ impl WorldModel {
 pub enum WorldMessage {}
 
 impl Model<WorldMessage> for WorldModel {
-    fn view(&self, mut writer: impl Write) -> Result<()> {
+    fn view(&mut self, frame: &mut Frame) {
         let store = self.store.borrow();
         let [pos_col, pos_row] = store.position;
         let rows = self.rows as usize;
@@ -87,23 +87,33 @@ impl Model<WorldMessage> for WorldModel {
 
         let viewport = store.grid.slice(s![rs..re, cs..ce]);
 
-        for (r, row) in viewport.rows().into_iter().enumerate() {
-            for (c, cell) in row.iter().enumerate() {
-                let styled = if (rs + r) == pos_row && (cs + c) == pos_col {
-                    "  ".on_yellow()
-                } else {
-                    match cell.id {
-                        CellId::Empty => "  ".stylize(),
-                        CellId::Pod => "  ".on(Color::Grey),
-                        CellId::Belt => "  ".on(Color::DarkGrey),
-                    }
-                };
-                queue!(writer, PrintStyledContent(styled))?;
-            }
-            queue!(writer, MoveToNextLine(1))?;
-        }
+        let lines: Vec<_> = viewport
+            .rows()
+            .into_iter()
+            .enumerate()
+            .map(|(r, row)| {
+                Line::from(
+                    row.iter()
+                        .enumerate()
+                        .map(|(c, cell)| {
+                            let style = if (rs + r) == pos_row && (cs + c) == pos_col {
+                                Style::default().bg(Color::Yellow)
+                            } else {
+                                match cell.id {
+                                    CellId::Empty => Style::default().bg(Color::Reset),
+                                    CellId::Pod => Style::default().bg(Color::LightBlue),
+                                    CellId::Belt => Style::default().bg(Color::DarkGray),
+                                }
+                            };
 
-        Ok(())
+                            Span::styled("  ", style)
+                        })
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+
+        frame.render_widget(Paragraph::new(lines), frame.area());
     }
 
     fn update(&mut self, message: AppMessage<WorldMessage>) -> RuntimeMessage<WorldMessage> {

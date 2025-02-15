@@ -1,9 +1,4 @@
-use std::{
-    io::{stdout, Write},
-    panic,
-};
-
-use crossterm::{cursor, event, execute, queue, terminal};
+use crossterm::{event, terminal};
 use eyre::Result;
 use futures::{
     channel::mpsc::{self, SendError},
@@ -11,6 +6,7 @@ use futures::{
     stream::{iter, select},
     SinkExt, StreamExt,
 };
+use ratatui::DefaultTerminal;
 
 use crate::{AppMessage, Model};
 
@@ -42,7 +38,10 @@ impl<T: 'static> RuntimeMessage<T> {
     }
 }
 
-async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
+pub async fn event_loop<T: Send + 'static>(
+    mut model: impl Model<T>,
+    mut terminal: DefaultTerminal,
+) -> Result<()> {
     let (mut msg_tx, msgs) = mpsc::unbounded();
     let msgs = msgs.map(|m| Ok(m));
     let events =
@@ -58,7 +57,6 @@ async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
         )))
         .await?;
 
-    let mut writer = stdout();
     while let Some(message) = combined.next().await {
         let msg = message?;
         match msg {
@@ -79,15 +77,7 @@ async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
             RuntimeMessage::App(msg) => {
                 let out_msg = model.update(msg);
                 msg_tx.send(out_msg).await?;
-                queue!(
-                    writer,
-                    terminal::BeginSynchronizedUpdate,
-                    terminal::Clear(terminal::ClearType::All),
-                    cursor::MoveTo(0, 0),
-                )?;
-                model.view(&mut writer)?;
-                queue!(writer, terminal::EndSynchronizedUpdate)?;
-                writer.flush()?;
+                terminal.draw(|frame| model.view(frame))?;
             }
             RuntimeMessage::Task(task) => {
                 let mut msg_tx = msg_tx.clone();
@@ -96,39 +86,4 @@ async fn event_loop<T: Send + 'static>(mut model: impl Model<T>) -> Result<()> {
         };
     }
     Ok(())
-}
-
-pub fn cleanup() -> Result<()> {
-    execute!(
-        stdout(),
-        cursor::Show,
-        terminal::EnableLineWrap,
-        event::DisableMouseCapture,
-        terminal::LeaveAlternateScreen,
-    )?;
-    terminal::disable_raw_mode()?;
-
-    Ok(())
-}
-
-pub async fn init<T: Send + 'static>(model: impl Model<T>) -> Result<()> {
-    terminal::enable_raw_mode()?;
-
-    execute!(
-        stdout(),
-        cursor::Hide,
-        terminal::EnterAlternateScreen,
-        terminal::DisableLineWrap,
-        event::EnableMouseCapture
-    )?;
-
-    let original_hook = panic::take_hook();
-    panic::set_hook(Box::new(move |info| {
-        let _ = cleanup();
-        original_hook(info);
-    }));
-
-    let event_loop = event_loop(model).await;
-    cleanup()?;
-    event_loop
 }

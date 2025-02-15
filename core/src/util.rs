@@ -1,5 +1,3 @@
-pub mod text;
-
 #[macro_export]
 macro_rules! generic_passthrough {
     ($msg:expr, $(($msg_path:path, $model:expr)), *) => {

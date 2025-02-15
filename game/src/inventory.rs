@@ -1,23 +1,14 @@
-use std::{cell::RefCell, io::Write, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-use cog_core::{
-    runtime::RuntimeMessage,
-    util::text::{
-        border::Border,
-        commands::PrintLines,
-        join::{self},
-        size::height,
-    },
-    AppMessage, Model,
-};
-use crossterm::{
-    cursor::MoveTo,
-    event::{Event, KeyCode, KeyEvent},
-    queue,
-    style::Stylize,
-};
-use eyre::Result;
+use cog_core::{runtime::RuntimeMessage, AppMessage, Model};
+use crossterm::event::{Event, KeyCode, KeyEvent};
 use ndarray::Array1;
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    Frame,
+};
 
 use crate::{store::Store, world::cells::Cell};
 
@@ -56,40 +47,37 @@ impl InventoryModel {
 pub enum InventoryMessage {}
 
 impl Model<InventoryMessage> for InventoryModel {
-    fn view(&self, mut writer: impl Write) -> Result<()> {
+    fn view(&mut self, frame: &mut Frame) {
         let store = self.store.borrow();
-        let output = Border::rounded().render(
-            join::horizontal(
-                join::CENTER,
-                &store
-                    .inventory
-                    .slots
-                    .view()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, (amount, item))| {
-                        let mut inner = item.name.to_string();
-                        inner = join::vertical(join::CENTER, &vec![inner, amount.to_string()]);
-                        if i == store.inventory.selected {
-                            inner = inner.blue().to_string();
-                        }
 
-                        Border::default()
-                            .margin_individual(0, 0, 2, if i < SLOTS - 1 { 0 } else { 2 })
-                            .render(inner.as_str())
-                    })
-                    .collect(),
-            )
-            .as_str(),
-        );
+        let block = Block::bordered().border_type(BorderType::Rounded);
+        let block_area = {
+            let frame_area = frame.area();
+            let height = 4;
+            Rect::new(0, frame_area.height - height, SLOTS as u16 * 8, height).clamp(frame_area)
+        };
 
-        queue!(
-            writer,
-            MoveTo(0, self.rows.saturating_sub(height(output.as_str()) as u16)),
-            PrintLines(output)
-        )?;
+        frame.render_widget(Clear, block_area);
+        frame.render_widget(&block, block_area);
 
-        Ok(())
+        let slots = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Ratio(1, SLOTS as u32); SLOTS])
+            .split(block.inner(block_area));
+
+        for (i, (amount, item)) in store.inventory.slots.view().into_iter().enumerate() {
+            let mut style = Style::new();
+            if i == store.inventory.selected {
+                style = style.fg(Color::Blue);
+            }
+
+            frame.render_widget(
+                Paragraph::new(format!("{}\n{}", item.name, amount))
+                    .alignment(ratatui::layout::Alignment::Center)
+                    .style(style),
+                slots[i],
+            );
+        }
     }
 
     fn update(

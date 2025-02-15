@@ -1,13 +1,14 @@
-use std::{cell::RefCell, io::Write, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use cog_core::{
-    generic_passthrough,
-    runtime::{self, RuntimeMessage},
+    generic_passthrough, init, restore,
+    runtime::{event_loop, RuntimeMessage},
     AppMessage, Model,
 };
 use crossterm::event;
 use eyre::Result;
 use inventory::{InventoryMessage, InventoryModel};
+use ratatui::Frame;
 use store::Store;
 use world::{WorldMessage, WorldModel};
 
@@ -35,11 +36,9 @@ impl MainModel {
 }
 
 impl Model<MainMessage> for MainModel {
-    fn view(&self, mut writer: impl Write) -> Result<()> {
-        self.world_model.view(&mut writer)?;
-        self.inventory_model.view(writer)?;
-
-        Ok(())
+    fn view(&mut self, frame: &mut Frame) {
+        self.world_model.view(frame);
+        self.inventory_model.view(frame);
     }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
@@ -64,5 +63,6 @@ impl Model<MainMessage> for MainModel {
 #[tokio::main]
 async fn main() -> Result<()> {
     let store = Rc::new(RefCell::new(Store::new(44)));
-    runtime::init::<MainMessage>(MainModel::new(store)).await
+    event_loop(MainModel::new(store), init()?).await?;
+    restore()
 }
