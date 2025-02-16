@@ -2,7 +2,7 @@ use ndarray::{Array, Array2};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-use crate::{
+use crate::models::{
     inventory::Inventory,
     world::{cells, SIZE},
 };

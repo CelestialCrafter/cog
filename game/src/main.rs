@@ -10,14 +10,15 @@ use eyre::Result;
 use ratatui::Frame;
 
 use controls::QUIT;
-use inventory::{InventoryMessage, InventoryModel};
+use models::{
+    inventory::{InventoryMessage, InventoryModel},
+    world::{WorldMessage, WorldModel},
+};
 use store::Store;
-use world::{WorldMessage, WorldModel};
 
 pub mod controls;
-pub mod inventory;
+pub mod models;
 pub mod store;
-pub mod world;
 
 enum MainMessage {
     World(WorldMessage),

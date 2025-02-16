@@ -10,7 +10,9 @@ use ratatui::{
     Frame,
 };
 
-use crate::{store::Store, world::cells::Cell};
+use crate::store::Store;
+
+use super::world::cells::Cell;
 
 pub const SLOTS: usize = 9;
 
