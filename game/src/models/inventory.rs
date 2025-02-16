@@ -10,7 +10,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::store::Store;
+use crate::{colors, store::Store};
 
 use super::world::cells::Cell;
 
@@ -70,7 +70,7 @@ impl Model<InventoryMessage> for InventoryModel {
         for (i, (amount, item)) in store.inventory.slots.view().into_iter().enumerate() {
             let mut style = Style::new();
             if i == store.inventory.selected {
-                style = style.fg(Color::Blue);
+                style = style.fg(colors::PRIMARY);
             }
 
             frame.render_widget(

@@ -11,7 +11,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::{controls::DIRECTONAL, store::Store};
+use crate::{colors, controls::DIRECTONAL, store::Store};
 
 pub const SIZE: usize = 128;
 
@@ -101,8 +101,8 @@ impl Model<WorldMessage> for WorldModel {
                             } else {
                                 match cell.id {
                                     CellId::Empty => Style::default().bg(Color::Reset),
-                                    CellId::Pod => Style::default().bg(Color::LightBlue),
-                                    CellId::Belt => Style::default().bg(Color::DarkGray),
+                                    CellId::Pod => Style::default().bg(colors::SECONDARY),
+                                    CellId::Belt => Style::default().bg(colors::ACCENT),
                                 }
                             };
 

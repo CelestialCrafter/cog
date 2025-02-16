@@ -16,6 +16,7 @@ use models::{
 };
 use store::Store;
 
+pub mod colors;
 pub mod controls;
 pub mod models;
 pub mod store;
