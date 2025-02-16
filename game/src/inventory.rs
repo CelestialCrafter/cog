@@ -6,7 +6,7 @@ use ndarray::Array1;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, BorderType, Borders, Clear, Paragraph},
+    widgets::{Block, BorderType, Clear, Paragraph},
     Frame,
 };
 

@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use cells::CellId;
 use cog_core::{runtime::RuntimeMessage, AppMessage, Model};
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::Event;
 use ndarray::s;
 use ratatui::{
     style::{Color, Style},
@@ -11,7 +11,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::store::Store;
+use crate::{controls::DIRECTONAL, store::Store};
 
 pub const SIZE: usize = 128;
 
@@ -118,17 +118,19 @@ impl Model<WorldMessage> for WorldModel {
 
     fn update(&mut self, message: AppMessage<WorldMessage>) -> RuntimeMessage<WorldMessage> {
         match message {
-            AppMessage::Event(Event::Key(KeyEvent { code, .. })) => {
+            AppMessage::Event(Event::Key(event)) => {
                 let mut store = self.store.borrow_mut();
                 let mut c = store.position[0] as isize;
                 let mut r = store.position[1] as isize;
 
-                match code {
-                    KeyCode::Left => c -= 1,
-                    KeyCode::Right => c += 1,
-                    KeyCode::Up => r -= 1,
-                    KeyCode::Down => r += 1,
-                    _ => (),
+                if DIRECTONAL.left.contains(&event) {
+                    c -= 1;
+                } else if DIRECTONAL.right.contains(&event) {
+                    c += 1;
+                } else if DIRECTONAL.up.contains(&event) {
+                    r -= 1;
+                } else if DIRECTONAL.down.contains(&event) {
+                    r += 1;
                 }
 
                 let c = c.min(SIZE as isize - 1).max(0) as usize;

@@ -5,13 +5,16 @@ use cog_core::{
     runtime::{event_loop, RuntimeMessage},
     AppMessage, Model,
 };
-use crossterm::event;
+use crossterm::event::Event;
 use eyre::Result;
-use inventory::{InventoryMessage, InventoryModel};
 use ratatui::Frame;
+
+use controls::QUIT;
+use inventory::{InventoryMessage, InventoryModel};
 use store::Store;
 use world::{WorldMessage, WorldModel};
 
+pub mod controls;
 pub mod inventory;
 pub mod store;
 pub mod world;
@@ -43,10 +46,13 @@ impl Model<MainMessage> for MainModel {
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
         let main_msg = match message {
-            AppMessage::Event(event::Event::Key(event::KeyEvent {
-                code: event::KeyCode::Esc | event::KeyCode::Char('q'),
-                ..
-            })) => RuntimeMessage::Exit,
+            AppMessage::Event(Event::Key(event)) => {
+                if QUIT.contains(&event) {
+                    RuntimeMessage::Exit
+                } else {
+                    RuntimeMessage::Empty
+                }
+            }
             _ => RuntimeMessage::Empty,
         };
 
