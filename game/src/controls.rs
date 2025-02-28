@@ -5,7 +5,7 @@ fn no_mods(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
-pub enum Basic {
+pub enum BasicCluster {
     Left,
     Right,
     Up,
@@ -13,19 +13,19 @@ pub enum Basic {
     Select,
 }
 
-pub enum Actions {
+pub enum ActionCluster {
     Back,
     Exit,
 }
 
-pub enum World {
+pub enum WorldCluster {
     Interact,
     ZoomIn,
     ZoomOut,
 }
 
 control_cluster!(
-    Basic,
+    BasicCluster,
     (
         Left,
         ControlSet::new(&vec![
@@ -62,7 +62,7 @@ control_cluster!(
 );
 
 control_cluster!(
-    Actions,
+    ActionCluster,
     (
         Back,
         ControlSet::new(&vec![no_mods(KeyCode::Char('q')), no_mods(KeyCode::Esc)])
@@ -77,7 +77,7 @@ control_cluster!(
 );
 
 control_cluster!(
-    World,
+    WorldCluster,
     // = is + without shift
     (
         Interact,

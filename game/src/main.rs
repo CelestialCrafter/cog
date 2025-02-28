@@ -6,11 +6,10 @@ use std::{
 };
 
 use cog_core::{
-    init, restore,
-    runtime::{event_loop, RuntimeMessage},
-    AppMessage, Model,
+    init, passthru, restore, runtime::{event_loop, RuntimeMessage}, AppMessage, Model
 };
-use crossterm::style::{Color, Stylize};
+use components::world::{WorldMessage, WorldModel};
+use crossterm::{event::{Event, KeyCode, KeyEvent}, style::{Color, Stylize}};
 use env_logger::{Builder, Target};
 use eyre::Result;
 use log::Level;
@@ -19,25 +18,37 @@ use ratatui::Frame;
 use store::{RRStore, Store};
 
 pub mod colors;
+pub mod components;
 pub mod controls;
 pub mod store;
 
 #[derive(Debug)]
-enum MainMessage {}
+enum MainMessage {
+    World(WorldMessage)
+}
 
-struct MainModel {}
+struct MainModel {
+    world_model: WorldModel,
+}
 
 impl MainModel {
     pub fn new(store: RRStore) -> Self {
-        Self {}
+        Self {
+            world_model: WorldModel::new(store),
+        }
     }
 }
 
 impl Model<MainMessage> for MainModel {
-    fn view(&mut self, frame: &mut Frame) { }
+    fn view(&mut self, frame: &mut Frame) {
+        self.world_model.view(frame);
+    }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
-        RuntimeMessage::Empty
+        if let AppMessage::Event(Event::Key(KeyEvent { code: KeyCode::Char('q'), .. })) = message {
+            return RuntimeMessage::Exit;
+        }
+        passthru!(message, (MainMessage::World, self.world_model))
     }
 }
 
@@ -72,7 +83,7 @@ fn logging() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-   logging()?;
+    logging()?;
 
     let store = Rc::new(RefCell::new(Store::new(44)));
     let term = init(stdout())?;
