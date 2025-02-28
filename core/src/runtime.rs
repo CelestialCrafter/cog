@@ -1,6 +1,6 @@
-use std::io::Write;
+use std::fmt::Debug;
 
-use crossterm::{cursor, event, execute, queue, terminal};
+use crossterm::{event, terminal};
 use eyre::Result;
 use futures::{
     channel::mpsc::{self, SendError},
@@ -8,6 +8,8 @@ use futures::{
     stream::{iter, select},
     SinkExt, StreamExt,
 };
+use log::{error, trace};
+use ratatui::DefaultTerminal;
 
 use crate::{AppMessage, Model};
 
@@ -19,20 +21,59 @@ pub enum RuntimeMessage<T> {
     App(AppMessage<T>),
 }
 
-async fn event_loop<T: Send + 'static>(
-    mut writer: impl Write,
+impl<T: 'static> RuntimeMessage<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U + Send + 'static + Clone) -> RuntimeMessage<U> {
+        match self {
+            RuntimeMessage::Exit => RuntimeMessage::Exit,
+            RuntimeMessage::Empty => RuntimeMessage::Empty,
+            RuntimeMessage::Batch(msgs) => {
+                RuntimeMessage::Batch(msgs.into_iter().map(|m| m.map(f.clone())).collect())
+            }
+            RuntimeMessage::Task(task) => {
+                RuntimeMessage::Task(Box::pin(async move { task.await.map(f) }))
+            }
+            RuntimeMessage::App(msg) => RuntimeMessage::App(match msg {
+                AppMessage::Init => AppMessage::Init,
+                AppMessage::Event(event) => AppMessage::Event(event),
+                AppMessage::App(msg) => AppMessage::App(f(msg)),
+            }),
+        }
+    }
+}
+
+pub async fn event_loop<T: Debug + Send + 'static>(
     mut model: impl Model<T>,
+    mut terminal: DefaultTerminal,
 ) -> Result<()> {
     let (mut msg_tx, msgs) = mpsc::unbounded();
-    let msgs = msgs.map(|m| Ok(m));
+    let msgs = msgs.map(|msg| Ok(msg));
     let events =
         event::EventStream::new().map(|e| e.map(|e| RuntimeMessage::App(AppMessage::Event(e))));
     let mut combined = select(msgs, events);
 
     msg_tx.send(RuntimeMessage::App(AppMessage::Init)).await?;
 
-    while let Some(message) = combined.next().await {
-        let msg = message?;
+    let (c, r) = terminal::size()?;
+    msg_tx
+        .send(RuntimeMessage::App(AppMessage::Event(
+            event::Event::Resize(c, r),
+        )))
+        .await?;
+
+    let mut frame: usize = 0;
+    while let Some(msg) = combined.next().await {
+        let msg = match msg {
+            Err(err) => {
+                error!("message error: {}", err);
+                continue;
+            }
+            Ok(msg) => msg,
+        };
+
+        if let RuntimeMessage::App(AppMessage::Event(event::Event::Mouse(_))) = msg {
+            continue;
+        }
+
         match msg {
             RuntimeMessage::Exit => break,
             RuntimeMessage::Empty => (),
@@ -49,17 +90,12 @@ async fn event_loop<T: Send + 'static>(
                     .await?;
             }
             RuntimeMessage::App(msg) => {
+                trace!("frame: {}, application msg: {:?}", frame, msg);
+                frame = frame.wrapping_add(1);
+
                 let out_msg = model.update(msg);
                 msg_tx.send(out_msg).await?;
-                queue!(
-                    writer,
-                    terminal::BeginSynchronizedUpdate,
-                    terminal::Clear(terminal::ClearType::All),
-                    cursor::MoveTo(0, 0),
-                )?;
-                model.view(&mut writer)?;
-                queue!(writer, terminal::EndSynchronizedUpdate)?;
-                writer.flush()?;
+                terminal.draw(|frame| model.view(frame))?;
             }
             RuntimeMessage::Task(task) => {
                 let mut msg_tx = msg_tx.clone();
@@ -68,27 +104,4 @@ async fn event_loop<T: Send + 'static>(
         };
     }
     Ok(())
-}
-
-pub async fn init<T: Send + 'static>(mut writer: impl Write, model: impl Model<T>) -> Result<()> {
-    terminal::enable_raw_mode()?;
-    execute!(
-        writer,
-        cursor::Hide,
-        terminal::EnterAlternateScreen,
-        terminal::DisableLineWrap,
-        event::EnableMouseCapture
-    )?;
-
-    let result = event_loop(&mut writer, model).await;
-
-    execute!(
-        writer,
-        cursor::Show,
-        terminal::EnableLineWrap,
-        event::DisableMouseCapture,
-        terminal::LeaveAlternateScreen,
-    )?;
-    terminal::disable_raw_mode()?;
-    result
 }
