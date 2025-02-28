@@ -1,6 +1,9 @@
 use std::fmt;
 
-use ratatui::{style::Style, text::Text};
+use ratatui::{
+    style::{Color, Style},
+    text::Text,
+};
 
 use crate::colors;
 
@@ -10,7 +13,7 @@ pub enum ZoomLevel {
     Far = 1,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Item {
     #[default]
     Empty,
@@ -37,23 +40,37 @@ impl fmt::Display for Item {
 }
 
 impl Item {
+    pub fn color(&self) -> Color {
+        match self {
+            Self::Empty => Color::Reset,
+            Self::RawIron => colors::IRON,
+            Self::RawCopper => colors::COPPER,
+            Self::RawGold => colors::GOLD,
+            Self::RawSilver => colors::SILVER,
+            Self::RawTin => colors::TIN,
+        }
+    }
+
     pub fn render(&self, zoom: ZoomLevel) -> Text {
+        let color = self.color();
+        let bg = Style::default().bg(color);
+
         match zoom {
             ZoomLevel::Close => match self {
-                Self::Empty => Text::styled("····\n····", Style::default()),
-                Self::RawIron => Text::styled("╒══╕\n╘══╛", Style::default().fg(colors::IRON)),
-                Self::RawCopper => Text::styled("┌──┐\n└──┘", Style::default().fg(colors::COPPER)),
-                Self::RawGold => Text::styled("╭──╮\n╰──╯", Style::default().fg(colors::GOLD)),
-                Self::RawSilver => Text::styled("┏━━┓\n┗━━┛", Style::default().fg(colors::SILVER)),
-                Self::RawTin => Text::styled("┍━━┑\n┕━━┙", Style::default().fg(colors::TIN)),
+                Self::Empty => Text::raw("····\n····"),
+                Self::RawIron => Text::styled("╒══╕\n╘══╛", color),
+                Self::RawCopper => Text::styled("┌──┐\n└──┘", color),
+                Self::RawGold => Text::styled("╭──╮\n╰──╯", color),
+                Self::RawSilver => Text::styled("┏━━┓\n┗━━┛", color),
+                Self::RawTin => Text::styled("┍━━┑\n┕━━┙", color),
             },
             ZoomLevel::Far => match self {
                 Self::Empty => Text::raw("  "),
-                Self::RawIron => Text::styled("▪▪", Style::default().bg(colors::IRON)),
-                Self::RawCopper => Text::styled("▫▫", Style::default().bg(colors::COPPER)),
-                Self::RawGold => Text::styled("◆◆", Style::default().bg(colors::GOLD)),
-                Self::RawSilver => Text::styled("◇◇", Style::default().bg(colors::SILVER)),
-                Self::RawTin => Text::styled("◈◈", Style::default().bg(colors::TIN)),
+                Self::RawIron => Text::styled("▪▪", bg),
+                Self::RawCopper => Text::styled("▫▫", bg),
+                Self::RawGold => Text::styled("◆◆", bg),
+                Self::RawSilver => Text::styled("◇◇", bg),
+                Self::RawTin => Text::styled("◈◈", bg),
             },
         }
     }

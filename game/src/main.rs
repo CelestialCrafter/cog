@@ -8,12 +8,12 @@ use std::{
 use cog_core::{
     init, passthru, restore, runtime::{event_loop, RuntimeMessage}, AppMessage, Model
 };
-use components::world::{WorldMessage, WorldModel};
+use components::{inventory::{simple::SimpleInventory, Inventory, InventoryWidget, Operation}, world::{items::Item, WorldMessage, WorldModel}};
 use crossterm::{event::{Event, KeyCode, KeyEvent}, style::{Color, Stylize}};
 use env_logger::{Builder, Target};
 use eyre::Result;
 use log::Level;
-use ratatui::Frame;
+use ratatui::{layout::Rect, widgets::Widget, Frame};
 
 use store::{RRStore, Store};
 
