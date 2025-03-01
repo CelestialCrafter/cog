@@ -22,7 +22,7 @@ use crossterm::{
 };
 use env_logger::{Builder, Target};
 use eyre::Result;
-use log::{info, Level};
+use log::Level;
 use ratatui::{layout::Rect, widgets::Widget, Frame};
 
 pub mod colors;

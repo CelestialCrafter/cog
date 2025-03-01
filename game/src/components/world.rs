@@ -61,14 +61,11 @@ impl World {
     }
 }
 
-pub struct WorldWidget<'a> {
-    world: &'a World,
-    zoom: ZoomLevel,
-}
+pub struct WorldWidget<'a>(&'a World, ZoomLevel);
 
 impl<'a> WorldWidget<'a> {
     fn new(world: &'a World, zoom: ZoomLevel) -> Self {
-        Self { world, zoom }
+        Self(world, zoom)
     }
 }
 
@@ -77,10 +74,10 @@ impl<'a> Widget for WorldWidget<'a> {
     where
         Self: Sized,
     {
-        let (cur_row, cur_col) = self.world.cursor;
+        let (cur_row, cur_col) = self.0.cursor;
 
-        let zoom_n = self.zoom as usize;
-        let size = self.world.size();
+        let zoom_n = self.1 as usize;
+        let size = self.0.size();
         let width = area.width as usize / 2 / zoom_n;
         let height = area.height as usize / zoom_n;
 
@@ -97,7 +94,7 @@ impl<'a> Widget for WorldWidget<'a> {
 
             (
                 (cur_row - rs, cur_col - cs),
-                self.world.grid.slice(s![rs..re, cs..ce]),
+                self.0.grid.slice(s![rs..re, cs..ce]),
             )
         };
 
@@ -109,7 +106,7 @@ impl<'a> Widget for WorldWidget<'a> {
                 let mut lines: Vec<_> = repeat_n(Line::default(), zoom_n).collect();
 
                 for (c, cell) in row.into_iter().enumerate() {
-                    let mut text = cell.render(self.zoom);
+                    let mut text = cell.render(self.1);
                     if r == cursor_row && c == cursor_col {
                         text = text.patch_style(Style::new().bg(Color::LightYellow));
                     }
@@ -146,8 +143,9 @@ impl WorldModel {
         }
     }
 
-    fn handle_select(&self, store: &mut Store, cursor: Position) {
+    fn handle_select(store: &mut Store) {
         // Get the cursor item first, before borrowing inventory
+        let cursor = store.world.cursor;
         let cursor_item = store.world.grid[cursor];
 
         match cursor_item {
@@ -194,18 +192,16 @@ impl Model<WorldMessage> for WorldModel {
 
         match message {
             AppMessage::Event(Event::Key(event)) => {
-                let cursor = store.world.cursor;
-
                 match BasicCluster::contains(&event) {
                     Some(BasicCluster::Left) => store.world.travel(0, -1),
                     Some(BasicCluster::Right) => store.world.travel(0, 1),
                     Some(BasicCluster::Up) => store.world.travel(-1, 0),
                     Some(BasicCluster::Down) => store.world.travel(1, 0),
-                    Some(BasicCluster::Select) => self.handle_select(&mut store, cursor),
+                    Some(BasicCluster::Select) => Self::handle_select(&mut store),
                     None => (),
                 }
 
-                *store.entities.position.get_mut(&PLAYER_ID).unwrap() = cursor;
+                *store.entities.position.get_mut(&PLAYER_ID).unwrap() = store.world.cursor;
 
                 match WorldCluster::contains(&event) {
                     Some(WorldCluster::ZoomIn) => {
