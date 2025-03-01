@@ -27,13 +27,11 @@ pub trait Inventory {
     ) -> Option<(Item, Box<dyn FnOnce() + '_>)>;
 }
 
-pub struct InventoryWidget<'a> {
-    inventory: &'a dyn Inventory,
-}
+pub struct InventoryWidget<'a>(&'a dyn Inventory)
 
 impl<'a> InventoryWidget<'a> {
     pub fn new(inventory: &'a dyn Inventory) -> Self {
-        Self { inventory }
+        Self(inventory)
     }
 }
 
@@ -42,7 +40,8 @@ impl widgets::Widget for InventoryWidget<'_> {
     where
         Self: Sized,
     {
-        let max_slots = self.inventory.max_slots();
+        let slots = self.0.slots();
+        let max_slots = self.0.max_slots();
 
         let item = Item::default();
         let slots = {
