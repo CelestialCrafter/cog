@@ -1,6 +1,6 @@
 use std::{
-    io::{stdout, Write},
     fmt::Debug,
+    io::{stdout, Write},
     panic,
 };
 

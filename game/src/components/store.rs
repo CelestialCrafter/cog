@@ -5,9 +5,12 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 
 use crate::components::world::{items::Item, World};
 
+use super::entity::{player, EntityData, EntityRegistry, PLAYER_ID};
+
 pub struct Store {
     pub rng: Xoshiro256PlusPlus,
     pub world: World,
+    pub entities: EntityRegistry,
 }
 
 pub type RRStore = Rc<RefCell<Store>>;
@@ -16,6 +19,7 @@ impl Store {
     pub fn new(seed: u64) -> Self {
         let mut rng = Xoshiro256PlusPlus::seed_from_u64(seed);
         let mut world = World::new(150);
+        let mut entities = EntityRegistry::default();
 
         world
             .grid
@@ -36,6 +40,19 @@ impl Store {
             })
             .for_each(|(random, cell)| *cell = random);
 
-        Store { rng, world }
+        entities.register(
+            PLAYER_ID,
+            EntityData::Player(player::Data::default()),
+            (
+                rng.random_range(..world.size()),
+                rng.random_range(..world.size()),
+            ),
+        );
+
+        Store {
+            rng,
+            world,
+            entities,
+        }
     }
 }
