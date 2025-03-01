@@ -13,9 +13,11 @@ use ratatui::{
 };
 
 use crate::{
+    components::store::RRStore,
     controls::{BasicCluster, WorldCluster},
-    store::RRStore,
 };
+
+use super::{entity::PLAYER_ID, inventory::Operation, store::Store};
 
 pub mod items;
 
@@ -129,10 +131,7 @@ impl<'a> Widget for WorldWidget<'a> {
 }
 
 #[derive(Debug)]
-pub enum WorldMessage {
-    Place(Item, Position),
-    Destroy(Position),
-}
+pub enum WorldMessage {}
 
 pub struct WorldModel {
     store: RRStore,
@@ -146,6 +145,42 @@ impl WorldModel {
             zoom: ZoomLevel::Close,
         }
     }
+
+    fn handle_select(&self, store: &mut Store, cursor: Position) {
+        // Get the cursor item first, before borrowing inventory
+        let cursor_item = store.world.grid[cursor];
+
+        match cursor_item {
+            Item::Empty => {
+                // Get inventory reference within this scope
+                let inventory = store
+                    .entities
+                    .data
+                    .get_mut(&PLAYER_ID)
+                    .unwrap()
+                    .inventory_mut();
+
+                if let Some((item, commit)) = inventory.modify(&Operation::Remove(None), 1) {
+                    commit();
+                    store.world.place(item, cursor)
+                }
+            }
+            _ => {
+                // Get inventory reference within this scope
+                let inventory = store
+                    .entities
+                    .data
+                    .get_mut(&PLAYER_ID)
+                    .unwrap()
+                    .inventory_mut();
+
+                if let Some((_, commit)) = inventory.modify(&Operation::Add(cursor_item), 1) {
+                    commit();
+                    store.world.destroy(cursor)
+                }
+            }
+        }
+    }
 }
 
 impl Model<WorldMessage> for WorldModel {
@@ -156,15 +191,21 @@ impl Model<WorldMessage> for WorldModel {
 
     fn update(&mut self, message: AppMessage<WorldMessage>) -> RuntimeMessage<WorldMessage> {
         let mut store = self.store.borrow_mut();
+
         match message {
             AppMessage::Event(Event::Key(event)) => {
+                let cursor = store.world.cursor;
+
                 match BasicCluster::contains(&event) {
                     Some(BasicCluster::Left) => store.world.travel(0, -1),
                     Some(BasicCluster::Right) => store.world.travel(0, 1),
                     Some(BasicCluster::Up) => store.world.travel(-1, 0),
                     Some(BasicCluster::Down) => store.world.travel(1, 0),
-                    _ => (),
+                    Some(BasicCluster::Select) => self.handle_select(&mut store, cursor),
+                    None => (),
                 }
+
+                *store.entities.position.get_mut(&PLAYER_ID).unwrap() = cursor;
 
                 match WorldCluster::contains(&event) {
                     Some(WorldCluster::ZoomIn) => {
@@ -180,10 +221,6 @@ impl Model<WorldMessage> for WorldModel {
                     _ => (),
                 }
             }
-            AppMessage::App(msg) => match msg {
-                WorldMessage::Place(item, pos) => store.world.place(item, pos),
-                WorldMessage::Destroy(pos) => store.world.destroy(pos),
-            },
             _ => (),
         };
 

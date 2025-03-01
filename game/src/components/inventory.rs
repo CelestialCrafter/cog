@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::repeat_n};
 
 use ratatui::{
     layout,
@@ -42,8 +42,16 @@ impl widgets::Widget for InventoryWidget<'_> {
     where
         Self: Sized,
     {
-        let slots = self.inventory.slots();
         let max_slots = self.inventory.max_slots();
+
+        let item = Item::default();
+        let slots = {
+            let original = self.inventory.slots();
+            let len = original.len();
+            original
+                .into_iter()
+                .chain(repeat_n((&item, &0), max_slots - len))
+        };
 
         let block = widgets::Block::bordered().border_type(widgets::BorderType::Rounded);
         let block_area = block.inner(area);
@@ -53,10 +61,13 @@ impl widgets::Widget for InventoryWidget<'_> {
 
         let layout_slots = layout::Layout::default()
             .direction(layout::Direction::Horizontal)
-            .constraints(vec![layout::Constraint::Ratio(1, max_slots as u32); max_slots])
+            .constraints(vec![
+                layout::Constraint::Ratio(1, max_slots as u32);
+                max_slots
+            ])
             .split(block_area);
 
-        for (i, (item, amount)) in slots.into_iter().enumerate() {
+        for (i, (item, amount)) in slots.enumerate() {
             widgets::Paragraph::new(format!("{}\n{}", item, amount))
                 .alignment(ratatui::layout::Alignment::Center)
                 .style(item.color())

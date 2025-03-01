@@ -4,7 +4,6 @@ use crate::components::world::items::Item;
 
 use super::{Inventory, Operation};
 
-#[derive(Debug)]
 pub struct SimpleInventory {
     slots: HashMap<Item, usize>,
     preferred: Option<Item>,

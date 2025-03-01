@@ -6,35 +6,45 @@ use std::{
 };
 
 use cog_core::{
-    init, passthru, restore, runtime::{event_loop, RuntimeMessage}, AppMessage, Model
+    init, passthru, restore,
+    runtime::{event_loop, RuntimeMessage},
+    AppMessage, Model,
 };
-use components::{inventory::{simple::SimpleInventory, Inventory, InventoryWidget, Operation}, world::{items::Item, WorldMessage, WorldModel}};
-use crossterm::{event::{Event, KeyCode, KeyEvent}, style::{Color, Stylize}};
+use components::{
+    entity::PLAYER_ID,
+    inventory::InventoryWidget,
+    store::{RRStore, Store},
+    world::{WorldMessage, WorldModel},
+};
+use crossterm::{
+    event::{Event, KeyCode, KeyEvent},
+    style::{Color, Stylize},
+};
 use env_logger::{Builder, Target};
 use eyre::Result;
-use log::Level;
+use log::{info, Level};
 use ratatui::{layout::Rect, widgets::Widget, Frame};
-
-use store::{RRStore, Store};
 
 pub mod colors;
 pub mod components;
 pub mod controls;
-pub mod store;
+pub mod util;
 
 #[derive(Debug)]
 enum MainMessage {
-    World(WorldMessage)
+    World(WorldMessage),
 }
 
 struct MainModel {
     world_model: WorldModel,
+    store: RRStore,
 }
 
 impl MainModel {
     pub fn new(store: RRStore) -> Self {
         Self {
-            world_model: WorldModel::new(store),
+            world_model: WorldModel::new(store.clone()),
+            store,
         }
     }
 }
@@ -42,12 +52,32 @@ impl MainModel {
 impl Model<MainMessage> for MainModel {
     fn view(&mut self, frame: &mut Frame) {
         self.world_model.view(frame);
+
+        let store = self.store.borrow();
+        let inventory = store.entities.data.get(&PLAYER_ID).unwrap().inventory();
+
+        let height = 4;
+        let area = frame.area();
+        InventoryWidget::new(inventory).render(
+            Rect::new(
+                0,
+                area.height - height,
+                inventory.max_slots() as u16 * (height as f32 * 2.5) as u16,
+                height,
+            ).clamp(area),
+            frame.buffer_mut(),
+        );
     }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
-        if let AppMessage::Event(Event::Key(KeyEvent { code: KeyCode::Char('q'), .. })) = message {
+        if let AppMessage::Event(Event::Key(KeyEvent {
+            code: KeyCode::Char('q'),
+            ..
+        })) = message
+        {
             return RuntimeMessage::Exit;
         }
+
         passthru!(message, (MainMessage::World, self.world_model))
     }
 }
