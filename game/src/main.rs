@@ -11,7 +11,7 @@ use cog_core::{
     AppMessage, Model,
 };
 use components::{
-    entity::PLAYER_ID,
+    entity::{EntityRegistry, PLAYER_ID},
     inventory::InventoryWidget,
     store::{RRStore, Store},
     world::{WorldMessage, WorldModel},

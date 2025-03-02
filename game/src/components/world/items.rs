@@ -5,7 +5,7 @@ use ratatui::{
     text::Text,
 };
 
-use crate::colors;
+use crate::components::entity::EntityId;
 
 #[derive(Clone, Copy)]
 pub enum ZoomLevel {
@@ -23,18 +23,20 @@ pub enum Item {
     RawGold,
     RawSilver,
     RawTin,
+
+    Pod(EntityId),
 }
 
 impl fmt::Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "Empty"),
-
             Self::RawIron => write!(f, "Raw Iron"),
             Self::RawCopper => write!(f, "Raw Copper"),
             Self::RawGold => write!(f, "Raw Gold"),
             Self::RawSilver => write!(f, "Raw Silver"),
             Self::RawTin => write!(f, "Raw Tin"),
+            Self::Pod(_) => write!(f, "Pod")
         }
     }
 }
@@ -43,11 +45,12 @@ impl Item {
     pub fn color(&self) -> Color {
         match self {
             Self::Empty => Color::Reset,
-            Self::RawIron => colors::IRON,
-            Self::RawCopper => colors::COPPER,
-            Self::RawGold => colors::GOLD,
-            Self::RawSilver => colors::SILVER,
-            Self::RawTin => colors::TIN,
+            Self::RawIron => Color::DarkGray,
+            Self::RawCopper => Color::Yellow,
+            Self::RawGold => Color::LightYellow,
+            Self::RawSilver => Color::Gray,
+            Self::RawTin => Color::LightBlue,
+            Self::Pod(_) => Color::DarkGray,
         }
     }
 
@@ -63,6 +66,7 @@ impl Item {
                 Self::RawGold => Text::styled("╭──╮\n╰──╯", color),
                 Self::RawSilver => Text::styled("┏━━┓\n┗━━┛", color),
                 Self::RawTin => Text::styled("┍━━┑\n┕━━┙", color),
+                Self::Pod(_) => Text::styled("╔══╗\n╚══╝", color),
             },
             ZoomLevel::Far => match self {
                 Self::Empty => Text::raw("  "),
@@ -71,6 +75,7 @@ impl Item {
                 Self::RawGold => Text::styled("◆◆", bg),
                 Self::RawSilver => Text::styled("◇◇", bg),
                 Self::RawTin => Text::styled("◈◈", bg),
+                Self::Pod(_) => Text::styled("  ", color),
             },
         }
     }

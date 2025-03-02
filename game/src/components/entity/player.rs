@@ -1,7 +1,10 @@
+use std::collections::HashSet;
+
 use crate::components::{inventory::simple::SimpleInventory, store::Store};
 
 use super::EntityId;
 
+#[derive(Debug)]
 pub struct Data {
     pub inventory: SimpleInventory,
 }
@@ -14,4 +17,6 @@ impl Default for Data {
     }
 }
 
-pub fn update(store: &mut Store, batch: Vec<EntityId>) {}
+pub fn tick(_store: &mut Store, _batch: HashSet<EntityId>) {
+    unreachable!("Player is not tickable");
+}

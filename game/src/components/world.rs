@@ -3,16 +3,21 @@ use std::iter::repeat_n;
 use cog_core::{runtime::RuntimeMessage, util::controls::ControlCluster, AppMessage, Model};
 use crossterm::event::Event;
 use items::{Item, ZoomLevel};
-use ndarray::{s, Array2};
+use ndarray::{s, Array2, Dim, NdIndex};
+use rand::{
+    distr::{Distribution, StandardUniform},
+    Rng,
+};
 use ratatui::{
     prelude::{Buffer, Rect},
-    style::{Color, Style},
+    style::Style,
     text::Line,
     widgets::{Paragraph, Widget},
     Frame,
 };
 
 use crate::{
+    colors,
     components::store::RRStore,
     controls::{BasicCluster, WorldCluster},
 };
@@ -21,7 +26,29 @@ use super::{entity::PLAYER_ID, inventory::Operation, store::Store};
 
 pub mod items;
 
-pub type Position = (usize, usize);
+pub const SIZE: usize = 150;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Position(usize, usize);
+
+impl Distribution<Position> for StandardUniform {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Position {
+        Position(rng.random_range(..SIZE), rng.random_range(..SIZE))
+    }
+}
+
+type Dim2 = Dim<[usize; 2]>;
+unsafe impl NdIndex<Dim2> for Position {
+    #[inline]
+    fn index_checked(&self, dim: &Dim2, strides: &Dim2) -> Option<isize> {
+        [self.0, self.1].index_checked(dim, strides)
+    }
+
+    #[inline]
+    fn index_unchecked(&self, strides: &Dim2) -> isize {
+        [self.0, self.1].index_unchecked(strides)
+    }
+}
 
 pub struct World {
     pub grid: Array2<Item>,
@@ -29,10 +56,10 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(size: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            grid: Array2::default((size, size)),
-            cursor: (0, 0),
+            grid: Array2::default((SIZE, SIZE)),
+            cursor: Position(0, 0),
         }
     }
 
@@ -49,7 +76,7 @@ impl World {
             .min(self.size() - 1)
         };
 
-        self.cursor = (bounds(r, self.cursor.0), bounds(c, self.cursor.1));
+        self.cursor = Position(bounds(r, self.cursor.0), bounds(c, self.cursor.1));
     }
 
     pub fn place(&mut self, item: Item, position: Position) {
@@ -74,7 +101,7 @@ impl<'a> Widget for WorldWidget<'a> {
     where
         Self: Sized,
     {
-        let (cur_row, cur_col) = self.0.cursor;
+        let Position(cur_row, cur_col) = self.0.cursor;
 
         let zoom_n = self.1 as usize;
         let size = self.0.size();
@@ -108,7 +135,7 @@ impl<'a> Widget for WorldWidget<'a> {
                 for (c, cell) in row.into_iter().enumerate() {
                     let mut text = cell.render(self.1);
                     if r == cursor_row && c == cursor_col {
-                        text = text.patch_style(Style::new().bg(Color::LightYellow));
+                        text = text.patch_style(Style::new().bg(colors::ACCENT));
                     }
 
                     for (i, line) in text.lines.into_iter().enumerate() {
