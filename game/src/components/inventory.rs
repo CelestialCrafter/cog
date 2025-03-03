@@ -11,20 +11,21 @@ use super::world::items::Item;
 pub mod simple;
 
 pub enum Operation {
-    Add(Item),
-    Remove(Option<Item>),
+    Add(Item, usize),
+    Remove(Option<Item>, Option<usize>),
 }
 
-pub trait Inventory {
+pub struct Before(pub Item, pub usize);
+pub struct After(pub Item, pub usize);
+
+pub trait Inventory: Send + Sync {
     fn slots(&self) -> &HashMap<Item, usize>;
     fn max_slots(&self) -> usize;
 
-    /// warning: the inventory is expected not to change between transaction creation and commit
-    fn modify(
-        &mut self,
-        operation: &Operation,
-        amount: usize,
-    ) -> Option<(Item, Box<dyn FnOnce() + '_>)>;
+    fn verify(&self, operation: &Operation) -> Option<(Before, After)>;
+
+    /// warning: the inventory is expected not to change between transaction verification and modification
+    fn modify(&mut self, operation: &After);
 }
 
 pub struct InventoryWidget<'a>(&'a dyn Inventory);

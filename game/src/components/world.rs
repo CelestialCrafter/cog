@@ -22,18 +22,37 @@ use crate::{
     controls::{BasicCluster, WorldCluster},
 };
 
-use super::{entity::PLAYER_ID, inventory::Operation, store::Store};
+use super::{
+    entity::get_player,
+    inventory::{Inventory, Operation},
+    store::Store,
+};
 
 pub mod items;
 
 pub const SIZE: usize = 150;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Position(usize, usize);
+pub struct Position(pub usize, pub usize);
 
 impl Distribution<Position> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Position {
         Position(rng.random_range(..SIZE), rng.random_range(..SIZE))
+    }
+}
+
+impl Position {
+    pub fn move_by(&mut self, offset: (Direction, usize)) {
+        let bounds = |a: isize, b: usize| {
+            match a {
+                0.. => b.saturating_add(a as usize * offset.1),
+                ..0 => b.saturating_sub(a.abs() as usize * offset.1),
+            }
+            .min(SIZE - 1)
+        };
+
+        let offset: (isize, isize) = offset.0.into();
+        *self = Position(bounds(offset.0, self.0), bounds(offset.1, self.1));
     }
 }
 
@@ -50,6 +69,36 @@ unsafe impl NdIndex<Dim2> for Position {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum Direction {
+    North,
+    South,
+    East,
+    West,
+}
+
+impl Distribution<Direction> for StandardUniform {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Direction {
+        match rng.random_range(..4_u8) {
+            0 => Direction::North,
+            1 => Direction::South,
+            2 => Direction::East,
+            3 => Direction::West,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Into<(isize, isize)> for Direction {
+    fn into(self) -> (isize, isize) {
+        match self {
+            Direction::North => (-1, 0),
+            Direction::South => (1, 0),
+            Direction::East => (0, -1),
+            Direction::West => (0, 1),
+        }
+    }
+}
 pub struct World {
     pub grid: Array2<Item>,
     pub cursor: Position,
@@ -65,18 +114,6 @@ impl World {
 
     pub fn size(&self) -> usize {
         self.grid.shape()[0]
-    }
-
-    pub fn travel(&mut self, r: isize, c: isize) {
-        let bounds = |a: isize, b: usize| {
-            match a {
-                0.. => b.saturating_add(a as usize),
-                ..0 => b.saturating_sub(a.abs() as usize),
-            }
-            .min(self.size() - 1)
-        };
-
-        self.cursor = Position(bounds(r, self.cursor.0), bounds(c, self.cursor.1));
     }
 
     pub fn place(&mut self, item: Item, position: Position) {
@@ -104,14 +141,13 @@ impl<'a> Widget for WorldWidget<'a> {
         let Position(cur_row, cur_col) = self.0.cursor;
 
         let zoom_n = self.1 as usize;
-        let size = self.0.size();
         let width = area.width as usize / 2 / zoom_n;
         let height = area.height as usize / zoom_n;
 
         let ((cursor_row, cursor_col), viewport) = {
             let bounds = |a: usize, b: usize| {
-                let s = a.saturating_sub(b / 2).min(size.saturating_sub(b));
-                let e = (a + b).min(size);
+                let s = a.saturating_sub(b / 2).min(SIZE.saturating_sub(b));
+                let e = (a + b).min(SIZE);
 
                 (s, e)
             };
@@ -171,36 +207,27 @@ impl WorldModel {
     }
 
     fn handle_select(store: &mut Store) {
-        // Get the cursor item first, before borrowing inventory
         let cursor = store.world.cursor;
         let cursor_item = store.world.grid[cursor];
 
+        let (_, inventory) = get_player::<&mut Box<dyn Inventory>>(&mut store.entities);
+
         match cursor_item {
             Item::Empty => {
-                // Get inventory reference within this scope
-                let inventory = store
-                    .entities
-                    .data
-                    .get_mut(&PLAYER_ID)
-                    .unwrap()
-                    .inventory_mut();
-
-                if let Some((item, commit)) = inventory.modify(&Operation::Remove(None), 1) {
-                    commit();
-                    store.world.place(item, cursor)
+                if let Some((_, op)) = inventory.verify(&Operation::Remove(None, Some(1))) {
+                    inventory.modify(&op);
+                    if let Some(entity) = op.0.entity() {
+                        let _ = store.entities.insert_one(*entity, cursor);
+                    }
+                    store.world.place(op.0, cursor)
                 }
             }
             _ => {
-                // Get inventory reference within this scope
-                let inventory = store
-                    .entities
-                    .data
-                    .get_mut(&PLAYER_ID)
-                    .unwrap()
-                    .inventory_mut();
-
-                if let Some((_, commit)) = inventory.modify(&Operation::Add(cursor_item), 1) {
-                    commit();
+                if let Some((_, op)) = inventory.verify(&Operation::Add(cursor_item, 1)) {
+                    inventory.modify(&op);
+                    if let Some(entity) = op.0.entity() {
+                        let _ = store.entities.remove_one::<Position>(*entity);
+                    }
                     store.world.destroy(cursor)
                 }
             }
@@ -219,16 +246,19 @@ impl Model<WorldMessage> for WorldModel {
 
         match message {
             AppMessage::Event(Event::Key(event)) => {
+                let w = &mut store.world;
                 match BasicCluster::contains(&event) {
-                    Some(BasicCluster::Left) => store.world.travel(0, -1),
-                    Some(BasicCluster::Right) => store.world.travel(0, 1),
-                    Some(BasicCluster::Up) => store.world.travel(-1, 0),
-                    Some(BasicCluster::Down) => store.world.travel(1, 0),
+                    Some(BasicCluster::Left) => w.cursor.move_by((Direction::East, 1)),
+                    Some(BasicCluster::Right) => w.cursor.move_by((Direction::West, 1)),
+                    Some(BasicCluster::Up) => w.cursor.move_by((Direction::North, 1)),
+                    Some(BasicCluster::Down) => w.cursor.move_by((Direction::South, 1)),
                     Some(BasicCluster::Select) => Self::handle_select(&mut store),
                     None => (),
                 }
 
-                *store.entities.position.get_mut(&PLAYER_ID).unwrap() = store.world.cursor;
+                let cur = store.world.cursor;
+                let (_, position) = get_player::<&mut Position>(&mut store.entities);
+                *position = cur;
 
                 match WorldCluster::contains(&event) {
                     Some(WorldCluster::ZoomIn) => {

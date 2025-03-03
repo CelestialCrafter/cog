@@ -1,22 +1,20 @@
-use std::collections::HashSet;
+use hecs::EntityBuilder;
 
-use crate::components::{inventory::simple::SimpleInventory, store::Store};
+use crate::components::{
+    inventory::{simple::SimpleInventory, Inventory},
+    world::Position,
+};
 
-use super::EntityId;
+#[derive(Default)]
+pub struct PlayerData;
 
-#[derive(Debug)]
-pub struct Data {
-    pub inventory: SimpleInventory,
-}
+pub fn player_builder(position: Position) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
 
-impl Default for Data {
-    fn default() -> Self {
-        Self {
-            inventory: SimpleInventory::new(None, 9)
-        }
-    }
-}
+    builder
+        .add(PlayerData)
+        .add(Box::new(SimpleInventory::new(None, 9)) as Box<dyn Inventory>)
+        .add(position);
 
-pub fn tick(_store: &mut Store, _batch: HashSet<EntityId>) {
-    unreachable!("Player is not tickable");
+    builder
 }

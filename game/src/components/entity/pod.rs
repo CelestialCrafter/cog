@@ -1,44 +1,35 @@
-use std::collections::{HashMap, HashSet};
+use hecs::EntityBuilder;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::components::{
     inventory::{simple::SimpleInventory, Inventory, Operation},
     store::Store,
-    world::items::Item,
+    world::{items::Item, Position},
 };
 
-use super::{EntityData, EntityId};
+pub struct PodData(pub Item);
 
-#[derive(Debug)]
-pub struct Data {
-    pub inventory: SimpleInventory,
-    pub resource: Item,
+pub fn pod_builder(resource: Item, position: Position) -> EntityBuilder {
+    let mut builder = EntityBuilder::new();
+
+    builder
+        .add(PodData(resource))
+        .add(Box::new(SimpleInventory::new(None, 1)) as Box<dyn Inventory>)
+        .add(position);
+
+    builder
 }
 
-impl Data {
-    pub fn new(resource: Item) -> Self {
-        Self {
-            inventory: SimpleInventory::new(None, 1),
-            resource,
-        }
-    }
-}
-
-fn tick_one(data_map: &mut HashMap<EntityId, EntityData>, id: &EntityId) -> Option<()> {
-    let inner = if let EntityData::Pod(inner) = data_map.get_mut(id)? {
-        inner
-    } else {
-        unreachable!()
-    };
-    inner
-        .inventory
-        .modify(&Operation::Add(inner.resource), 1)?
-        .1();
-    Some(())
-}
-
-pub fn tick(store: &mut Store, batch: HashSet<EntityId>) {
-    let data_map = &mut store.entities.data;
-    for id in batch.iter() {
-        tick_one(data_map, id);
-    }
+pub fn pod_tick(store: &mut Store) {
+    store
+        .entities
+        .query_mut::<(&PodData, &mut Box<dyn Inventory>)>()
+        .with::<&Position>()
+        .into_iter()
+        .par_bridge()
+        .for_each(|(_, (PodData(resource), inventory))| {
+            if let Some(op) = inventory.verify(&Operation::Add(*resource, 1)) {
+                inventory.modify(&op.1);
+            }
+        });
 }

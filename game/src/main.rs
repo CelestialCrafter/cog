@@ -11,8 +11,8 @@ use cog_core::{
     AppMessage, Model,
 };
 use components::{
-    entity::{EntityRegistry, PLAYER_ID},
-    inventory::InventoryWidget,
+    entity::{get_player, tick},
+    inventory::{Inventory, InventoryWidget},
     store::{RRStore, Store},
     world::{WorldMessage, WorldModel},
 };
@@ -53,18 +53,19 @@ impl Model<MainMessage> for MainModel {
     fn view(&mut self, frame: &mut Frame) {
         self.world_model.view(frame);
 
-        let store = self.store.borrow();
-        let inventory = store.entities.data.get(&PLAYER_ID).unwrap().inventory();
+        let mut store = self.store.borrow_mut();
+        let (_, inventory) = get_player::<&Box<dyn Inventory>>(&mut store.entities);
 
         let height = 4;
         let area = frame.area();
-        InventoryWidget::new(inventory).render(
+        InventoryWidget::new(inventory.as_ref()).render(
             Rect::new(
                 0,
                 area.height - height,
                 inventory.max_slots() as u16 * (height as f32 * 2.5) as u16,
                 height,
-            ).clamp(area),
+            )
+            .clamp(area),
             frame.buffer_mut(),
         );
     }
@@ -77,6 +78,8 @@ impl Model<MainMessage> for MainModel {
         {
             return RuntimeMessage::Exit;
         }
+
+        tick(&mut self.store.borrow_mut());
 
         passthru!(message, (MainMessage::World, self.world_model))
     }

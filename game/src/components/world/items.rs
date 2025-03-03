@@ -1,11 +1,10 @@
 use std::fmt;
 
+use hecs::Entity;
 use ratatui::{
     style::{Color, Style},
     text::Text,
 };
-
-use crate::components::entity::EntityId;
 
 #[derive(Clone, Copy)]
 pub enum ZoomLevel {
@@ -24,7 +23,8 @@ pub enum Item {
     RawSilver,
     RawTin,
 
-    Pod(EntityId),
+    Pod(Entity),
+    Belt(Entity),
 }
 
 impl fmt::Display for Item {
@@ -36,12 +36,26 @@ impl fmt::Display for Item {
             Self::RawGold => write!(f, "Raw Gold"),
             Self::RawSilver => write!(f, "Raw Silver"),
             Self::RawTin => write!(f, "Raw Tin"),
-            Self::Pod(_) => write!(f, "Pod")
+            Self::Pod(_) => write!(f, "Pod"),
+            Self::Belt(_) => write!(f, "Belt"),
         }
     }
 }
 
 impl Item {
+    pub fn entity(&self) -> Option<&Entity> {
+        match self {
+            Item::Empty => None,
+            Item::RawIron => None,
+            Item::RawCopper => None,
+            Item::RawGold => None,
+            Item::RawSilver => None,
+            Item::RawTin => None,
+            Item::Pod(e) => Some(e),
+            Item::Belt(e) => Some(e),
+        }
+    }
+
     pub fn color(&self) -> Color {
         match self {
             Self::Empty => Color::Reset,
@@ -51,6 +65,7 @@ impl Item {
             Self::RawSilver => Color::Gray,
             Self::RawTin => Color::LightBlue,
             Self::Pod(_) => Color::DarkGray,
+            Self::Belt(_) => Color::White,
         }
     }
 
@@ -67,6 +82,7 @@ impl Item {
                 Self::RawSilver => Text::styled("┏━━┓\n┗━━┛", color),
                 Self::RawTin => Text::styled("┍━━┑\n┕━━┙", color),
                 Self::Pod(_) => Text::styled("╔══╗\n╚══╝", color),
+                Self::Belt(_) => Text::styled("⇅⇄⇅⇄\n⇄⇅⇄⇅", color),
             },
             ZoomLevel::Far => match self {
                 Self::Empty => Text::raw("  "),
@@ -76,6 +92,7 @@ impl Item {
                 Self::RawSilver => Text::styled("◇◇", bg),
                 Self::RawTin => Text::styled("◈◈", bg),
                 Self::Pod(_) => Text::styled("  ", color),
+                Self::Belt(_) => Text::styled("⇅⇄", color),
             },
         }
     }

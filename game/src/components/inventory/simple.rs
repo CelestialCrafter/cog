@@ -2,9 +2,8 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use crate::components::world::items::Item;
 
-use super::{Inventory, Operation};
+use super::{After, Before, Inventory, Operation};
 
-#[derive(Debug)]
 pub struct SimpleInventory {
     slots: HashMap<Item, usize>,
     preferred: Option<Item>,
@@ -30,32 +29,27 @@ impl Inventory for SimpleInventory {
         self.limit
     }
 
-    fn modify(
-        &mut self,
-        operation: &Operation,
-        amount: usize,
-    ) -> Option<(Item, Box<dyn FnOnce() + '_>)> {
-        if let Operation::Add(item) = operation {
+    fn verify(&self, operation: &Operation) -> Option<(Before, After)> {
+        if let Operation::Add(item, _) = operation {
             if !self.slots.contains_key(item) && self.slots.len() >= self.limit {
                 return None;
             }
         }
 
-        let (item, slot_amount) = match operation {
-            Operation::Add(item) => {
-                let slot_amount = *self.slots.get(item).unwrap_or(&0);
-                slot_amount.checked_add(amount)?;
-                (*item, slot_amount)
+        let (item, before_amount, after_amount) = match operation {
+            Operation::Add(item, amount) => {
+                let sa = self.slots.get(item).unwrap_or(&0);
+                (item, sa, sa.checked_add(*amount)?)
             }
-            Operation::Remove(Some(item)) => {
-                let slot_amount = *self.slots.get(item)?;
-                if slot_amount < amount {
-                    return None;
-                }
-
-                (*item, slot_amount)
+            Operation::Remove(Some(item), amount) => {
+                let sa = self.slots.get(item)?;
+                let var_name = match amount {
+                    Some(amount) => (sa, sa.checked_sub(*amount)?),
+                    None => (sa, 0),
+                };
+                (item, var_name.0, var_name.1)
             }
-            Operation::Remove(None) => {
+            Operation::Remove(None, amount) => {
                 let mut slots_vec: Vec<_> = self.slots.iter().collect();
                 if let Some(preferred) = self.preferred {
                     slots_vec.sort_unstable_by(|a, b| {
@@ -67,27 +61,28 @@ impl Inventory for SimpleInventory {
                     });
                 }
 
-                slots_vec
-                    .into_iter()
-                    .find(|(_, slot_amount)| **slot_amount >= amount)
-                    .map(|(i, a)| (*i, *a))?
+                match amount {
+                    Some(amount) => {
+                        let (i, sa) = slots_vec.into_iter().find(|(_, sa)| *sa >= amount)?;
+                        (i, sa, sa.checked_sub(*amount)?)
+                    }
+                    None => {
+                        let (i, a) = slots_vec.first()?;
+                        (*i, *a, 0)
+                    }
+                }
             }
         };
 
-        Some((
-            item,
-            if let Operation::Add(_) = operation {
-                Box::new(move || *self.slots.entry(item).or_default() = slot_amount + amount)
-            } else {
-                Box::new(move || {
-                    let slot = self.slots.get_mut(&item).unwrap();
-                    *slot = slot_amount - amount;
-                    if *slot < 1 {
-                        self.slots.remove(&item);
-                    }
-                })
-            },
-        ))
+        Some((Before(*item, *before_amount), After(*item, after_amount)))
+    }
+
+    fn modify(&mut self, operation: &After) {
+        let slot = self.slots.entry(operation.0).or_default();
+        *slot = operation.1;
+        if *slot < 1 {
+            self.slots.remove(&operation.0);
+        }
     }
 }
 
@@ -99,42 +94,26 @@ mod tests {
     fn test_limit() {
         assert!(
             SimpleInventory::new(None, 0)
-                .modify(&Operation::Add(Item::RawSilver), 1)
+                .verify(&Operation::Add(Item::RawSilver, 1))
                 .is_none(),
-            "item added even though slot limit exceeded"
+            "add operation should not verify with slot limit exceeded"
         );
     }
 
     #[test]
     fn test_add() {
-        let mut inventory = SimpleInventory::new(None, 1);
-        inventory
-            .modify(&Operation::Add(Item::RawSilver), 1)
-            .expect("inventory add should succeed")
-            .1();
+        assert!(
+            SimpleInventory::new(None, 1)
+                .verify(&Operation::Add(Item::RawSilver, 1))
+                .is_some(),
+            "add operation should verify"
+        );
 
-        assert_eq!(
-            *inventory
-                .slots
-                .get(&Item::RawSilver)
-                .expect("item should exist in slots"),
-            1,
-            "item did not get added"
-        )
-    }
-
-    #[test]
-    fn test_add_overflow() {
-        let mut inventory = SimpleInventory::new(None, 1);
-
-        inventory
-            .modify(&Operation::Add(Item::RawSilver), usize::MAX)
-            .expect("inventory add should succeed")
-            .1();
-
+        let mut inventory = SimpleInventory::new(Some(Item::RawSilver), 1);
+        inventory.modify(&After(Item::RawSilver, usize::MAX));
         assert!(
             inventory
-                .modify(&Operation::Add(Item::RawSilver), 1)
+                .verify(&Operation::Add(Item::RawSilver, 1))
                 .is_none(),
             "should not be able to add beyond usize::MAX"
         );
@@ -142,71 +121,30 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let mut inventory = SimpleInventory::new(None, 1);
-
-        inventory
-            .modify(&Operation::Add(Item::RawSilver), 2)
-            .expect("inventory add should succeed")
-            .1();
-        inventory
-            .modify(&Operation::Remove(Some(Item::RawSilver)), 1)
-            .expect("inventory remove should succeed")
-            .1();
-
-        assert_eq!(
-            *inventory
-                .slots
-                .get(&Item::RawSilver)
-                .expect("item should exist in slots"),
-            1,
-            "item did not get removed"
+        assert!(
+            SimpleInventory::new(None, 1)
+                .verify(&Operation::Remove(Some(Item::RawSilver), Some(1)))
+                .is_none(),
+            "remove operation should not verify with no items"
         );
 
-        inventory
-            .modify(&Operation::Remove(Some(Item::RawSilver)), 1)
-            .expect("inventory remove should succeed")
-            .1();
+        let mut inventory = SimpleInventory::new(Some(Item::RawSilver), 1);
+        inventory.modify(&After(Item::RawSilver, 5));
+        if let Some((_, After(item, amount))) = inventory.verify(&Operation::Remove(None, None)) {
+            assert_eq!(
+                item,
+                Item::RawSilver,
+                "removed item should be the preferred item"
+            );
+            assert_eq!(amount, 0, "removed amount was not max amount");
+        } else {
+            panic!("remove operation should verify");
+        };
 
+        inventory.modify(&After(Item::RawSilver, 0));
         assert!(
             !inventory.slots.contains_key(&Item::RawSilver),
-            "inventory contains item after none left",
+            "inventory should not contain item after none left",
         );
-
-        assert!(
-            inventory
-                .modify(&Operation::Remove(Some(Item::RawSilver)), 1)
-                .is_none(),
-            "item removed even though no items left"
-        );
-    }
-
-    #[test]
-    fn test_remove_preferred() {
-        let mut inventory = SimpleInventory::new(Some(Item::RawSilver), 2);
-
-        inventory
-            .modify(&Operation::Add(Item::RawGold), 1)
-            .expect("inventory add should succeed")
-            .1();
-        inventory
-            .modify(&Operation::Add(Item::RawSilver), 1)
-            .expect("inventory add should succeed")
-            .1();
-
-        let (item, commit) = inventory
-            .modify(&Operation::Remove(None), 1)
-            .expect("inventory remove should succeed");
-        assert_eq!(
-            item,
-            Item::RawSilver,
-            "removed item was not the preferred item"
-        );
-        commit();
-
-        let item = inventory
-            .modify(&Operation::Remove(None), 1)
-            .expect("inventory remove should succeed")
-            .0;
-        assert_eq!(item, Item::RawGold, "item did not get removed");
     }
 }
