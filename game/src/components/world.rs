@@ -32,7 +32,7 @@ pub mod items;
 
 pub const SIZE: usize = 150;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Position(pub usize, pub usize);
 
 impl Distribution<Position> for StandardUniform {
@@ -42,17 +42,17 @@ impl Distribution<Position> for StandardUniform {
 }
 
 impl Position {
-    pub fn move_by(&mut self, offset: (Direction, usize)) {
+    pub fn move_by(&mut self, direction: Direction, multiplier: usize) {
         let bounds = |a: isize, b: usize| {
             match a {
-                0.. => b.saturating_add(a as usize * offset.1),
-                ..0 => b.saturating_sub(a.abs() as usize * offset.1),
+                0.. => b.saturating_add(a as usize * multiplier),
+                ..0 => b.saturating_sub(a.abs() as usize * multiplier),
             }
             .min(SIZE - 1)
         };
 
-        let offset: (isize, isize) = offset.0.into();
-        *self = Position(bounds(offset.0, self.0), bounds(offset.1, self.1));
+        let direction: (isize, isize) = direction.into();
+        *self = Position(bounds(direction.0, self.0), bounds(direction.1, self.1));
     }
 }
 
@@ -99,6 +99,18 @@ impl Into<(isize, isize)> for Direction {
         }
     }
 }
+
+impl Direction {
+    pub fn flip(&self) -> Self {
+        match self {
+            Direction::North => Direction::South,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
+        }
+    }
+}
+
 pub struct World {
     pub grid: Array2<Item>,
     pub cursor: Position,
@@ -248,10 +260,10 @@ impl Model<WorldMessage> for WorldModel {
             AppMessage::Event(Event::Key(event)) => {
                 let w = &mut store.world;
                 match BasicCluster::contains(&event) {
-                    Some(BasicCluster::Left) => w.cursor.move_by((Direction::East, 1)),
-                    Some(BasicCluster::Right) => w.cursor.move_by((Direction::West, 1)),
-                    Some(BasicCluster::Up) => w.cursor.move_by((Direction::North, 1)),
-                    Some(BasicCluster::Down) => w.cursor.move_by((Direction::South, 1)),
+                    Some(BasicCluster::Left) => w.cursor.move_by(Direction::East, 1),
+                    Some(BasicCluster::Right) => w.cursor.move_by(Direction::West, 1),
+                    Some(BasicCluster::Up) => w.cursor.move_by(Direction::North, 1),
+                    Some(BasicCluster::Down) => w.cursor.move_by(Direction::South, 1),
                     Some(BasicCluster::Select) => Self::handle_select(&mut store),
                     None => (),
                 }
