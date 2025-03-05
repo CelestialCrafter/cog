@@ -30,7 +30,7 @@ use super::{
 
 pub mod items;
 
-pub const SIZE: usize = 150;
+pub const SIZE: usize = 5;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Position(pub usize, pub usize);
@@ -38,21 +38,6 @@ pub struct Position(pub usize, pub usize);
 impl Distribution<Position> for StandardUniform {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Position {
         Position(rng.random_range(..SIZE), rng.random_range(..SIZE))
-    }
-}
-
-impl Position {
-    pub fn move_by(&mut self, direction: Direction, multiplier: usize) {
-        let bounds = |a: isize, b: usize| {
-            match a {
-                0.. => b.saturating_add(a as usize * multiplier),
-                ..0 => b.saturating_sub(a.abs() as usize * multiplier),
-            }
-            .min(SIZE - 1)
-        };
-
-        let direction: (isize, isize) = direction.into();
-        *self = Position(bounds(direction.0, self.0), bounds(direction.1, self.1));
     }
 }
 
@@ -66,6 +51,35 @@ unsafe impl NdIndex<Dim2> for Position {
     #[inline]
     fn index_unchecked(&self, strides: &Dim2) -> isize {
         [self.0, self.1].index_unchecked(strides)
+    }
+}
+
+impl From<(usize, usize)> for Position {
+    fn from(val: (usize, usize)) -> Self {
+        Self(val.0, val.1)
+    }
+}
+
+impl Position {
+    pub fn move_by(&self, direction: Direction, multiplier: usize) -> Option<Self> {
+        let bounds = |a: isize, b: usize| {
+            let v = match a {
+                0.. => b.checked_add(a as usize * multiplier)?,
+                ..0 => b.checked_sub(a.abs() as usize * multiplier)?,
+            };
+
+            if v >= SIZE {
+                None
+            } else {
+                Some(v)
+            }
+        };
+
+        let direction: (isize, isize) = direction.into();
+        Some(Position(
+            bounds(direction.0, self.0)?,
+            bounds(direction.1, self.1)?,
+        ))
     }
 }
 
@@ -259,18 +273,30 @@ impl Model<WorldMessage> for WorldModel {
         match message {
             AppMessage::Event(Event::Key(event)) => {
                 let w = &mut store.world;
+                let mut new_position = None;
                 match BasicCluster::contains(&event) {
-                    Some(BasicCluster::Left) => w.cursor.move_by(Direction::East, 1),
-                    Some(BasicCluster::Right) => w.cursor.move_by(Direction::West, 1),
-                    Some(BasicCluster::Up) => w.cursor.move_by(Direction::North, 1),
-                    Some(BasicCluster::Down) => w.cursor.move_by(Direction::South, 1),
+                    Some(BasicCluster::Left) => {
+                        let _ = new_position.insert(w.cursor.move_by(Direction::East, 1));
+                    }
+                    Some(BasicCluster::Right) => {
+                        let _ = new_position.insert(w.cursor.move_by(Direction::West, 1));
+                    }
+                    Some(BasicCluster::Up) => {
+                        let _ = new_position.insert(w.cursor.move_by(Direction::North, 1));
+                    }
+                    Some(BasicCluster::Down) => {
+                        let _ = new_position.insert(w.cursor.move_by(Direction::South, 1));
+                    }
                     Some(BasicCluster::Select) => Self::handle_select(&mut store),
                     None => (),
                 }
 
-                let cur = store.world.cursor;
-                let (_, position) = get_player::<&mut Position>(&mut store.entities);
-                *position = cur;
+                if let Some(np) = new_position.flatten() {
+                    store.world.cursor = np;
+
+                    let (_, position) = get_player::<&mut Position>(&mut store.entities);
+                    *position = np;
+                }
 
                 match WorldCluster::contains(&event) {
                     Some(WorldCluster::ZoomIn) => {

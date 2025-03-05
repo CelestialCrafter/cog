@@ -5,7 +5,7 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 
 use crate::components::world::{items::Item, World};
 
-use super::entity::{belt::belt_builder, player::player_builder, pod::pod_builder};
+use super::entity::{player::player_builder, pod::pod_builder, tunnel::tunnel_builder};
 
 pub struct Store {
     pub rng: Xoshiro256PlusPlus,
@@ -23,9 +23,11 @@ impl Store {
 
         world
             .grid
-            .iter_mut()
-            .filter_map(|cell| {
+            .indexed_iter_mut()
+            .filter_map(|(pos, cell)| {
                 let rand = rng.random_range(..5 as u8);
+                let pos = pos.into();
+
                 Some((
                     match rand {
                         0 => Item::Pod(
@@ -39,13 +41,14 @@ impl Store {
                                         4 => Item::RawTin,
                                         _ => unreachable!(),
                                     },
-                                    rng.random(),
+                                    pos,
                                 )
                                 .build(),
                             ),
                         ),
-                        1 => Item::Belt(
-                            entities.spawn(belt_builder(rng.random(), rng.random()).build()),
+                        1 => Item::Tunnel(
+                            entities
+                                .spawn(tunnel_builder(super::world::Direction::South, pos).build()),
                         ),
                         2 => Item::RawGold,
                         _ => Item::Empty,
@@ -55,7 +58,11 @@ impl Store {
             })
             .for_each(|(random, cell)| *cell = random);
 
-        entities.spawn(player_builder(rng.random()).build());
+        {
+            let position = rng.random();
+            entities.spawn(player_builder(position).build());
+            world.cursor = position;
+        }
 
         Store {
             rng,

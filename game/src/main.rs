@@ -79,9 +79,9 @@ impl Model<MainMessage> for MainModel {
             return RuntimeMessage::Exit;
         }
 
+        let msg = passthru!(message, (MainMessage::World, self.world_model));
         tick(&mut self.store.borrow_mut());
-
-        passthru!(message, (MainMessage::World, self.world_model))
+        msg
     }
 }
 
