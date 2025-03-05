@@ -295,7 +295,8 @@ impl Model<WorldMessage> for WorldModel {
                 if let Some(np) = new_position.flatten() {
                     store.world.cursor = np;
 
-                    let (_, position) = get_player::<&mut Position>(&mut store.entities).expect("player should exist");
+                    let (_, position) = get_player::<&mut Position>(&mut store.entities)
+                        .expect("player should exist");
                     *position = np;
                 }
 
