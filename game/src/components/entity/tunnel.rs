@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use hecs::{Entity, EntityBuilder, World};
+use hecs::{Entity, EntityBuilder};
 use topological_sort::TopologicalSort;
 
 use crate::components::{
@@ -9,13 +9,14 @@ use crate::components::{
     world::{Direction, Position},
 };
 
-pub struct TunnelData(Direction);
+pub struct TunnelData;
 
 pub fn tunnel_builder(direction: Direction, position: Position) -> EntityBuilder {
     let mut builder = EntityBuilder::new();
 
     builder
-        .add(TunnelData(direction))
+        .add(TunnelData)
+        .add(direction)
         .add(Box::new(SimpleInventory::new(None, 1)) as Box<dyn Inventory>)
         .add(position);
 
@@ -23,23 +24,20 @@ pub fn tunnel_builder(direction: Direction, position: Position) -> EntityBuilder
 }
 
 pub fn sorted_tunnels(
-    entities: &mut World,
+    store: &mut Store,
 ) -> Option<(HashMap<Entity, Vec<Entity>>, VecDeque<Entity>)> {
     let mut topo = TopologicalSort::new();
-    let entity_positions: HashMap<_, _> = entities
-        .query_mut::<&Position>()
-        .with::<&Box<dyn Inventory>>()
-        .into_iter()
-        .map(|(entity, pos)| (*pos, entity))
-        .collect();
     let mut dependants: HashMap<Entity, Vec<_>> = HashMap::new();
 
-    for (entity, (TunnelData(direction), tunnel_position)) in
-        entities.query_mut::<(&TunnelData, &Position)>().into_iter()
+    for (entity, (direction, tunnel_position)) in store
+        .entities
+        .query_mut::<(&Direction, &Position)>()
+        .with::<&TunnelData>()
+        .into_iter()
     {
         if let Some(&other) = tunnel_position
             .move_by(direction.flip(), 1)
-            .and_then(|pos| entity_positions.get(&pos))
+            .and_then(|pos| store.world.grid[pos].entity())
         {
             dependants.entry(other).or_default().push(entity);
             topo.add_dependency(entity, other);
@@ -60,7 +58,7 @@ pub fn sorted_tunnels(
 }
 
 pub fn tunnel_tick(store: &mut Store) {
-    let (dependants, tunnels) = if let Some(t) = sorted_tunnels(&mut store.entities) {
+    let (dependants, tunnels) = if let Some(t) = sorted_tunnels(store) {
         t
     } else {
         return;
@@ -70,17 +68,16 @@ pub fn tunnel_tick(store: &mut Store) {
         .iter()
         .filter_map(|entity| Some((entity, dependants.get(entity)?.first().unwrap())))
         .filter_map(|(tunnel, dep)| {
-            let [tunnel, dep] = store
+            let [t, dep] = store
                 .entities
                 .query_many_mut::<&mut Box<dyn Inventory>, 2>([*tunnel, *dep]);
+            let (t, d) = (t.ok()?, dep.ok()?);
 
-            let (tunnel, dep) = (tunnel.ok()?, dep.ok()?);
+            let t_op = t.verify(&Operation::Remove(None, None))?;
+            let d_op = d.verify(&Operation::Add(t_op.0 .0, t_op.0 .1))?;
 
-            let t_op = tunnel.verify(&Operation::Remove(None, None))?;
-            let d_op = dep.verify(&Operation::Add(t_op.0 .0, t_op.0 .1))?;
-
-            tunnel.modify(&t_op.1);
-            dep.modify(&d_op.1);
+            t.modify(&t_op.1);
+            d.modify(&d_op.1);
 
             Some(())
         })

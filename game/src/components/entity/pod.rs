@@ -1,5 +1,4 @@
 use hecs::EntityBuilder;
-use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::components::{
     inventory::{simple::SimpleInventory, Inventory, Operation},
@@ -26,7 +25,6 @@ pub fn pod_tick(store: &mut Store) {
         .query_mut::<(&PodData, &mut Box<dyn Inventory>)>()
         .with::<&Position>()
         .into_iter()
-        .par_bridge()
         .for_each(|(_, (PodData(resource), inventory))| {
             if let Some(op) = inventory.verify(&Operation::Add(*resource, 1)) {
                 inventory.modify(&op.1);

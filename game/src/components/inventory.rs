@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::repeat_n};
+use std::{collections::HashMap, iter::repeat_n, fmt::self};
 
 use ratatui::{
     layout,
@@ -26,6 +26,12 @@ pub trait Inventory: Send + Sync {
 
     /// warning: the inventory is expected not to change between transaction verification and modification
     fn modify(&mut self, operation: &After);
+}
+
+impl fmt::Debug for dyn Inventory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.slots())
+    }
 }
 
 pub struct InventoryWidget<'a>(&'a dyn Inventory);

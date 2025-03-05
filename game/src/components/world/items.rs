@@ -25,6 +25,7 @@ pub enum Item {
 
     Pod(Entity),
     Tunnel(Entity),
+    Pusher(Entity),
 }
 
 impl fmt::Display for Item {
@@ -36,8 +37,9 @@ impl fmt::Display for Item {
             Self::RawGold => write!(f, "Raw Gold"),
             Self::RawSilver => write!(f, "Raw Silver"),
             Self::RawTin => write!(f, "Raw Tin"),
-            Self::Pod(id) => write!(f, "{:?}", id),
-            Self::Tunnel(id) => write!(f, "{:?}", id),
+            Self::Pod(_) => write!(f, "Pod"),
+            Self::Tunnel(_) => write!(f, "Tunnel"),
+            Self::Pusher(_) => write!(f, "Pusher"),
         }
     }
 }
@@ -53,6 +55,7 @@ impl Item {
             Item::RawTin => None,
             Item::Pod(e) => Some(e),
             Item::Tunnel(e) => Some(e),
+            Item::Pusher(e) => Some(e),
         }
     }
 
@@ -66,6 +69,7 @@ impl Item {
             Self::RawTin => Color::LightBlue,
             Self::Pod(_) => Color::DarkGray,
             Self::Tunnel(_) => Color::White,
+            Self::Pusher(_) => Color::White,
         }
     }
 
@@ -83,6 +87,7 @@ impl Item {
                 Self::RawTin => Text::styled("┍━━┑\n┕━━┙", color),
                 Self::Pod(_) => Text::styled("╔══╗\n╚══╝", color),
                 Self::Tunnel(_) => Text::styled("⇅⇄⇅⇄\n⇄⇅⇄⇅", color),
+                Self::Pusher(_) => Text::styled("PSPS\nPSPS", color),
             },
             ZoomLevel::Far => match self {
                 Self::Empty => Text::raw("  "),
@@ -93,6 +98,7 @@ impl Item {
                 Self::RawTin => Text::styled("◈◈", bg),
                 Self::Pod(_) => Text::styled("  ", color),
                 Self::Tunnel(_) => Text::styled("⇅⇄", color),
+                Self::Pusher(_) => Text::styled("PS", color),
             },
         }
     }
