@@ -11,13 +11,12 @@ pub mod player;
 pub mod pod;
 pub mod pusher;
 
-pub fn get_player<Q: Query>(entities: &mut World) -> (Entity, <Q as Query>::Item<'_>) {
+pub fn get_player<Q: Query>(entities: &mut World) -> Option<(Entity, <Q as Query>::Item<'_>)> {
     entities
         .query_mut::<Q>()
         .with::<&PlayerData>()
         .into_iter()
         .next()
-        .expect("player should exist")
 }
 
 pub fn tick(store: &mut Store) {

@@ -5,11 +5,8 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 
 use crate::components::world::{items::Item, World};
 
-use super::{
-    entity::{
-        player::player_builder, pod::pod_builder, pusher::pusher_builder, tunnel::tunnel_builder,
-    },
-    world::Direction,
+use super::entity::{
+    player::player_builder, pod::pod_builder, pusher::pusher_builder, tunnel::tunnel_builder,
 };
 
 pub struct Store {
@@ -51,12 +48,12 @@ impl Store {
                                 .build(),
                             ),
                         ),
-                        1 => Item::Tunnel(
-                            entities.spawn(tunnel_builder(Direction::South, pos).build()),
-                        ),
-                        2 => Item::Pusher(
-                            entities.spawn(pusher_builder(Direction::South, pos).build()),
-                        ),
+                        1 => {
+                            Item::Tunnel(entities.spawn(tunnel_builder(rng.random(), pos).build()))
+                        }
+                        2 => {
+                            Item::Pusher(entities.spawn(pusher_builder(rng.random(), pos).build()))
+                        }
                         _ => Item::Empty,
                     },
                     cell,

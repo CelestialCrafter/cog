@@ -30,7 +30,7 @@ use super::{
 
 pub mod items;
 
-pub const SIZE: usize = 5;
+pub const SIZE: usize = 150;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Position(pub usize, pub usize);
@@ -236,7 +236,8 @@ impl WorldModel {
         let cursor = store.world.cursor;
         let cursor_item = store.world.grid[cursor];
 
-        let (_, inventory) = get_player::<&mut Box<dyn Inventory>>(&mut store.entities);
+        let (_, inventory) = get_player::<&mut Box<dyn Inventory>>(&mut store.entities)
+            .expect("player should exist");
 
         match cursor_item {
             Item::Empty => {
@@ -294,7 +295,7 @@ impl Model<WorldMessage> for WorldModel {
                 if let Some(np) = new_position.flatten() {
                     store.world.cursor = np;
 
-                    let (_, position) = get_player::<&mut Position>(&mut store.entities);
+                    let (_, position) = get_player::<&mut Position>(&mut store.entities).expect("player should exist");
                     *position = np;
                 }
 

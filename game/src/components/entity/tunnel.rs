@@ -66,12 +66,14 @@ pub fn tunnel_tick(store: &mut Store) {
 
     tunnels
         .iter()
-        .filter_map(|entity| Some((entity, dependants.get(entity)?.first().unwrap())))
-        .filter_map(|(tunnel, dep)| {
-            let [t, dep] = store
+        .filter_map(|&t| {
+            let [t, d] = store
                 .entities
-                .query_many_mut::<&mut Box<dyn Inventory>, 2>([*tunnel, *dep]);
-            let (t, d) = (t.ok()?, dep.ok()?);
+                .query_many_mut::<&mut Box<dyn Inventory>, 2>([
+                    t,
+                    *dependants.get(&t)?.first().unwrap(),
+                ]);
+            let (t, d) = (t.ok()?, d.ok()?);
 
             let t_op = t.verify(&Operation::Remove(None, None))?;
             let d_op = d.verify(&Operation::Add(t_op.0 .0, t_op.0 .1))?;

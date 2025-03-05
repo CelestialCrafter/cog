@@ -1,5 +1,4 @@
 use hecs::EntityBuilder;
-use log::info;
 
 use crate::components::{
     inventory::{Inventory, Operation},

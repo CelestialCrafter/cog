@@ -3,11 +3,13 @@ use std::{
     fs::OpenOptions,
     io::{stdout, Write},
     rc::Rc,
+    time::Duration,
 };
 
 use cog_core::{
     init, passthru, restore,
     runtime::{event_loop, RuntimeMessage},
+    util::app_message,
     AppMessage, Model,
 };
 use components::{
@@ -33,6 +35,7 @@ pub mod util;
 #[derive(Debug)]
 enum MainMessage {
     World(WorldMessage),
+    Tick,
 }
 
 struct MainModel {
@@ -54,7 +57,8 @@ impl Model<MainMessage> for MainModel {
         self.world_model.view(frame);
 
         let mut store = self.store.borrow_mut();
-        let (_, inventory) = get_player::<&Box<dyn Inventory>>(&mut store.entities);
+        let (_, inventory) =
+            get_player::<&Box<dyn Inventory>>(&mut store.entities).expect("player should exist");
 
         let height = 4;
         let area = frame.area();
@@ -71,17 +75,21 @@ impl Model<MainMessage> for MainModel {
     }
 
     fn update(&mut self, message: AppMessage<MainMessage>) -> RuntimeMessage<MainMessage> {
-        if let AppMessage::Event(Event::Key(KeyEvent {
-            code: KeyCode::Char('q'),
-            ..
-        })) = message
-        {
-            return RuntimeMessage::Exit;
+        match message {
+            AppMessage::Event(Event::Key(KeyEvent {
+                code: KeyCode::Char('q'),
+                ..
+            })) => return RuntimeMessage::Exit,
+            AppMessage::Init => app_message(MainMessage::Tick),
+            AppMessage::App(MainMessage::Tick) => {
+                tick(&mut self.store.borrow_mut());
+                RuntimeMessage::Task(Box::pin(async {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    app_message(MainMessage::Tick)
+                }))
+            }
+            _ => passthru!(message, (MainMessage::World, self.world_model)),
         }
-
-        let msg = passthru!(message, (MainMessage::World, self.world_model));
-        tick(&mut self.store.borrow_mut());
-        msg
     }
 }
 
