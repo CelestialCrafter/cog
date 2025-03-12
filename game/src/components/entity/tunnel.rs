@@ -4,7 +4,7 @@ use hecs::{Entity, EntityBuilder};
 use topological_sort::TopologicalSort;
 
 use crate::components::{
-    inventory::{simple::SimpleInventory, Inventory, Operation},
+    inventory::{Inventory, VerifyOperation, simple::SimpleInventory},
     store::Store,
     world::{Direction, Position},
 };
@@ -73,13 +73,7 @@ pub fn tunnel_tick(store: &mut Store) {
                     t,
                     *dependants.get(&t)?.first().unwrap(),
                 ]);
-            let (t, d) = (t.ok()?, d.ok()?);
-
-            let t_op = t.verify(&Operation::Remove(None, None))?;
-            let d_op = d.verify(&Operation::Add(t_op.0 .0, t_op.0 .1))?;
-
-            t.modify(&t_op.1);
-            d.modify(&d_op.1);
+            t.ok()?.swap(d.ok()?, VerifyOperation::Remove(None, None))?;
 
             Some(())
         })

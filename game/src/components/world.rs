@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
     entity::get_player,
-    inventory::{Inventory, Operation},
+    inventory::{Inventory, VerifyOperation},
     store::Store,
 };
 
@@ -241,18 +241,18 @@ impl WorldModel {
 
         match cursor_item {
             Item::Empty => {
-                if let Some((_, op)) = inventory.verify(&Operation::Remove(None, Some(1))) {
-                    inventory.modify(&op);
-                    if let Some(entity) = op.0.entity() {
+                if let Some((op, ..)) = inventory.verify(VerifyOperation::Remove(None, Some(1))) {
+                    inventory.modify(op.clone());
+                    if let Some(entity) = op.item.entity() {
                         let _ = store.entities.insert_one(*entity, cursor);
                     }
-                    store.world.place(op.0, cursor)
+                    store.world.place(op.item, cursor)
                 }
             }
             _ => {
-                if let Some((_, op)) = inventory.verify(&Operation::Add(cursor_item, 1)) {
-                    inventory.modify(&op);
-                    if let Some(entity) = op.0.entity() {
+                if let Some((op, ..)) = inventory.verify(VerifyOperation::Add(cursor_item, 1)) {
+                    inventory.modify(op.clone());
+                    if let Some(entity) = op.item.entity() {
                         let _ = store.entities.remove_one::<Position>(*entity);
                     }
                     store.world.destroy(cursor)

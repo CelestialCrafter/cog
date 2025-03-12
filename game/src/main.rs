@@ -66,7 +66,7 @@ impl Model<MainMessage> for MainModel {
             Rect::new(
                 0,
                 area.height - height,
-                inventory.max_slots() as u16 * (height as f32 * 2.5) as u16,
+                inventory.slots().len() as u16 * (height as f32 * 2.5) as u16,
                 height,
             )
             .clamp(area),

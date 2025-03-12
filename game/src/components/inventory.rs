@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::repeat_n, fmt::self};
+use std::fmt;
 
 use ratatui::{
     layout,
@@ -10,22 +10,40 @@ use super::world::items::Item;
 
 pub mod simple;
 
-pub enum Operation {
-    Add(Item, usize),
-    Remove(Option<Item>, Option<usize>),
+pub type Slot = u64;
+pub type Amount = u64;
+
+pub struct Before(pub Amount);
+pub struct After(pub Amount);
+
+pub enum VerifyOperation {
+    Add(Item, Amount),
+    Remove(Option<Item>, Option<Amount>),
 }
 
-pub struct Before(pub Item, pub usize);
-pub struct After(pub Item, pub usize);
+#[derive(Clone)]
+pub struct ModifyOperation {
+    pub slot: Slot,
+    pub item: Item,
+    pub amount: Amount,
+}
 
 pub trait Inventory: Send + Sync {
-    fn slots(&self) -> &HashMap<Item, usize>;
-    fn max_slots(&self) -> usize;
+    fn slots(&self) -> Vec<&(Item, u64)>;
 
-    fn verify(&self, operation: &Operation) -> Option<(Before, After)>;
-
+    fn verify(&self, operation: VerifyOperation) -> Option<(ModifyOperation, Before, After)>;
     /// warning: the inventory is expected not to change between transaction verification and modification
-    fn modify(&mut self, operation: &After);
+    fn modify(&mut self, operation: ModifyOperation);
+
+    fn swap(&mut self, other: &mut Box<dyn Inventory>, operation: VerifyOperation) -> Option<()> {
+        let (self_op, before, _) = self.verify(operation)?;
+        let (other_op, ..) = other.verify(VerifyOperation::Add(self_op.item, before.0))?;
+
+        self.modify(self_op);
+        other.modify(other_op);
+
+        Some(())
+    }
 }
 
 impl fmt::Debug for dyn Inventory {
@@ -47,16 +65,7 @@ impl widgets::Widget for InventoryWidget<'_> {
     where
         Self: Sized,
     {
-        let max_slots = self.0.max_slots();
-
-        let item = Item::default();
-        let slots = {
-            let original = self.0.slots();
-            let len = original.len();
-            original
-                .into_iter()
-                .chain(repeat_n((&item, &0), max_slots - len))
-        };
+        let slots = self.0.slots();
 
         let block = widgets::Block::bordered().border_type(widgets::BorderType::Rounded);
         let block_area = block.inner(area);
@@ -67,12 +76,12 @@ impl widgets::Widget for InventoryWidget<'_> {
         let layout_slots = layout::Layout::default()
             .direction(layout::Direction::Horizontal)
             .constraints(vec![
-                layout::Constraint::Ratio(1, max_slots as u32);
-                max_slots
+                layout::Constraint::Ratio(1, slots.len() as u32);
+                slots.len()
             ])
             .split(block_area);
 
-        for (i, (item, amount)) in slots.enumerate() {
+        for (i, (item, amount)) in slots.into_iter().enumerate() {
             widgets::Paragraph::new(format!("{}\n{}", item, amount))
                 .alignment(ratatui::layout::Alignment::Center)
                 .style(item.color())
