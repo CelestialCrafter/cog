@@ -9,6 +9,7 @@ use ratatui::{
 use super::world::items::Item;
 
 pub mod simple;
+pub mod player;
 
 pub type Slot = u64;
 pub type Amount = u64;
@@ -16,7 +17,7 @@ pub type Amount = u64;
 pub struct Before(pub Amount);
 pub struct After(pub Amount);
 
-pub enum VerifyOperation {
+pub enum PrepareOperation {
     Add(Item, Amount),
     Remove(Option<Item>, Option<Amount>),
 }
@@ -29,15 +30,15 @@ pub struct ModifyOperation {
 }
 
 pub trait Inventory: Send + Sync {
-    fn slots(&self) -> Vec<&(Item, u64)>;
+    fn slots(&self) -> Box<[&(Item, u64)]>;
 
-    fn verify(&self, operation: VerifyOperation) -> Option<(ModifyOperation, Before, After)>;
+    fn prepare(&self, operation: PrepareOperation) -> Option<(ModifyOperation, Before, After)>;
     /// warning: the inventory is expected not to change between transaction verification and modification
     fn modify(&mut self, operation: ModifyOperation);
 
-    fn swap(&mut self, other: &mut Box<dyn Inventory>, operation: VerifyOperation) -> Option<()> {
-        let (self_op, before, _) = self.verify(operation)?;
-        let (other_op, ..) = other.verify(VerifyOperation::Add(self_op.item, before.0))?;
+    fn swap(&mut self, other: &mut Box<dyn Inventory>, operation: PrepareOperation) -> Option<()> {
+        let (self_op, before, _) = self.prepare(operation)?;
+        let (other_op, ..) = other.prepare(PrepareOperation::Add(self_op.item, before.0))?;
 
         self.modify(self_op);
         other.modify(other_op);

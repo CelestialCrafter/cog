@@ -24,7 +24,7 @@ use crate::{
 
 use super::{
     entity::get_player,
-    inventory::{Inventory, VerifyOperation},
+    inventory::{Inventory, PrepareOperation},
     store::Store,
 };
 
@@ -241,7 +241,7 @@ impl WorldModel {
 
         match cursor_item {
             Item::Empty => {
-                if let Some((op, ..)) = inventory.verify(VerifyOperation::Remove(None, Some(1))) {
+                if let Some((op, ..)) = inventory.prepare(PrepareOperation::Remove(None, Some(1))) {
                     inventory.modify(op.clone());
                     if let Some(entity) = op.item.entity() {
                         let _ = store.entities.insert_one(*entity, cursor);
@@ -250,7 +250,7 @@ impl WorldModel {
                 }
             }
             _ => {
-                if let Some((op, ..)) = inventory.verify(VerifyOperation::Add(cursor_item, 1)) {
+                if let Some((op, ..)) = inventory.prepare(PrepareOperation::Add(cursor_item, 1)) {
                     inventory.modify(op.clone());
                     if let Some(entity) = op.item.entity() {
                         let _ = store.entities.remove_one::<Position>(*entity);
@@ -311,7 +311,8 @@ impl Model<WorldMessage> for WorldModel {
                             self.zoom = ZoomLevel::Far;
                         }
                     }
-                    _ => (),
+                    Some(WorldCluster::Interact) => todo!(),
+                    None => (),
                 }
             }
             _ => (),

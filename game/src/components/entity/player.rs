@@ -1,7 +1,7 @@
 use hecs::EntityBuilder;
 
 use crate::components::{
-    inventory::{simple::SimpleInventory, Inventory},
+    inventory::{player::PlayerInventory, Inventory},
     world::Position,
 };
 
@@ -13,7 +13,7 @@ pub fn player_builder(position: Position) -> EntityBuilder {
 
     builder
         .add(PlayerData)
-        .add(Box::new(SimpleInventory::new(None, 9)) as Box<dyn Inventory>)
+        .add(Box::new(PlayerInventory::new(9, 128)) as Box<dyn Inventory>)
         .add(position);
 
     builder

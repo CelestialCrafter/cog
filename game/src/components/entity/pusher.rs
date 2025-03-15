@@ -1,7 +1,7 @@
 use hecs::EntityBuilder;
 
 use crate::components::{
-    inventory::{Inventory, VerifyOperation},
+    inventory::{Inventory, PrepareOperation},
     store::Store,
     world::{Direction, Position},
 };
@@ -32,7 +32,7 @@ pub fn pusher_tick(store: &mut Store) {
             let [b, a] = store
                 .entities
                 .query_many_mut::<&mut Box<dyn Inventory>, 2>(ba);
-            b.ok()?.swap(a.ok()?, VerifyOperation::Remove(None, None));
+            b.ok()?.swap(a.ok()?, PrepareOperation::Remove(None, None));
 
             Some(())
         })

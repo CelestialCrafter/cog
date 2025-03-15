@@ -1,7 +1,7 @@
 use hecs::EntityBuilder;
 
 use crate::components::{
-    inventory::{simple::SimpleInventory, Inventory, VerifyOperation},
+    inventory::{simple::SimpleInventory, Inventory, PrepareOperation},
     store::Store,
     world::{items::Item, Position},
 };
@@ -13,7 +13,7 @@ pub fn pod_builder(resource: Item, position: Position) -> EntityBuilder {
 
     builder
         .add(PodData(resource))
-        .add(Box::new(SimpleInventory::new(None, 1)) as Box<dyn Inventory>)
+        .add(Box::new(SimpleInventory::new(1)) as Box<dyn Inventory>)
         .add(position);
 
     builder
@@ -26,7 +26,7 @@ pub fn pod_tick(store: &mut Store) {
         .with::<&Position>()
         .into_iter()
         .for_each(|(_, (PodData(resource), inventory))| {
-            if let Some((op, ..)) = inventory.verify(VerifyOperation::Add(*resource, 1)) {
+            if let Some((op, ..)) = inventory.prepare(PrepareOperation::Add(*resource, 1)) {
                 inventory.modify(op);
             }
         });

@@ -4,7 +4,7 @@ use hecs::{Entity, EntityBuilder};
 use topological_sort::TopologicalSort;
 
 use crate::components::{
-    inventory::{Inventory, VerifyOperation, simple::SimpleInventory},
+    inventory::{Inventory, PrepareOperation, simple::SimpleInventory},
     store::Store,
     world::{Direction, Position},
 };
@@ -17,7 +17,7 @@ pub fn tunnel_builder(direction: Direction, position: Position) -> EntityBuilder
     builder
         .add(TunnelData)
         .add(direction)
-        .add(Box::new(SimpleInventory::new(None, 1)) as Box<dyn Inventory>)
+        .add(Box::new(SimpleInventory::new(1)) as Box<dyn Inventory>)
         .add(position);
 
     builder
@@ -73,7 +73,7 @@ pub fn tunnel_tick(store: &mut Store) {
                     t,
                     *dependants.get(&t)?.first().unwrap(),
                 ]);
-            t.ok()?.swap(d.ok()?, VerifyOperation::Remove(None, None))?;
+            t.ok()?.swap(d.ok()?, PrepareOperation::Remove(None, None))?;
 
             Some(())
         })

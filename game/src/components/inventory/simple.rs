@@ -5,7 +5,7 @@ use std::{
 
 use crate::components::world::items::Item;
 
-use super::{After, Amount, Before, Inventory, ModifyOperation, Slot, VerifyOperation};
+use super::{After, Amount, Before, Inventory, ModifyOperation, PrepareOperation, Slot};
 
 fn hash(v: impl Hash) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -14,34 +14,32 @@ fn hash(v: impl Hash) -> u64 {
 }
 
 pub struct SimpleInventory {
-    slots: HashMap<Slot, (Item, Amount)>,
-    preferred: Option<Item>,
-    limit: usize,
+    pub slots: HashMap<Slot, (Item, Amount)>,
+    pub limit: usize,
 }
 
 impl SimpleInventory {
-    pub fn new(preferred: Option<Item>, limit: usize) -> Self {
+    pub fn new(limit: usize) -> Self {
         Self {
             slots: HashMap::default(),
-            preferred,
             limit,
         }
     }
 }
 
 impl Inventory for SimpleInventory {
-    fn slots(&self) -> Vec<&(Item, u64)> {
+    fn slots(&self) -> Box<[&(Item, u64)]> {
         self.slots.values().collect()
     }
 
-    fn verify(&self, operation: VerifyOperation) -> Option<(ModifyOperation, Before, After)> {
+    fn prepare(&self, operation: PrepareOperation) -> Option<(ModifyOperation, Before, After)> {
         let slot;
         let item;
         let before;
         let after;
 
         match operation {
-            VerifyOperation::Add(op_item, amount) => {
+            PrepareOperation::Add(op_item, amount) => {
                 item = op_item;
                 slot = hash(item);
 
@@ -57,11 +55,8 @@ impl Inventory for SimpleInventory {
                 };
                 after = before.checked_add(amount)?;
             }
-            VerifyOperation::Remove(op_item, amount) => {
-                item = match op_item {
-                    Some(i) => i,
-                    None => self.preferred?,
-                };
+            PrepareOperation::Remove(op_item, amount) => {
+                item = op_item?;
                 slot = hash(item);
 
                 before = self.slots.get(&slot)?.1;
@@ -109,10 +104,10 @@ mod tests {
     fn test_limit() {
         // test add past limit
         assert!(
-            SimpleInventory::new(None, 0)
-                .verify(VerifyOperation::Add(Item::RawSilver, 1))
+            SimpleInventory::new(0)
+                .prepare(PrepareOperation::Add(Item::RawSilver, 1))
                 .is_none(),
-            "add operation should not verify with slot limit exceeded"
+            "add operation should not prepare with slot limit exceeded"
         );
     }
 
@@ -120,24 +115,10 @@ mod tests {
     fn test_add() {
         // test add
         assert!(
-            SimpleInventory::new(None, 1)
-                .verify(VerifyOperation::Add(Item::RawSilver, 1))
+            SimpleInventory::new(1)
+                .prepare(PrepareOperation::Add(Item::RawSilver, 1))
                 .is_some(),
-            "add operation should verify"
-        );
-
-        // test add over max
-        let mut inventory = SimpleInventory::new(Some(Item::RawSilver), 1);
-        inventory.modify(ModifyOperation {
-            item: ITEM,
-            slot: *SLOT,
-            amount: Amount::MAX,
-        });
-        assert!(
-            inventory
-                .verify(VerifyOperation::Add(Item::RawSilver, 1))
-                .is_none(),
-            "should not be able to add beyond Amount::MAX"
+            "add operation should prepare"
         );
     }
 
@@ -145,28 +126,27 @@ mod tests {
     fn test_remove() {
         // test remove with none
         assert!(
-            SimpleInventory::new(None, 1)
-                .verify(VerifyOperation::Remove(Some(ITEM), Some(1)))
+            SimpleInventory::new(1)
+                .prepare(PrepareOperation::Remove(Some(ITEM), Some(1)))
                 .is_none(),
-            "remove operation should not verify with no items"
+            "remove operation should not prepare with no items"
         );
 
-        // test remove preferred/max
-        let mut inventory = SimpleInventory::new(Some(ITEM), 1);
+        // test remove max
+        let mut inventory = SimpleInventory::new(1);
         inventory.modify(ModifyOperation {
             item: ITEM,
             slot: *SLOT,
             amount: 5,
         });
-        if let Some((op, _, _)) = inventory.verify(VerifyOperation::Remove(None, None)) {
-            assert_eq!(op.item, ITEM, "removed item should be the preferred item");
-            assert_eq!(op.amount, 0, "removed amount was not max amount");
-        } else {
-            panic!("remove operation should verify");
-        };
+
+        let (ModifyOperation { amount, .. }, _, _) = inventory
+            .prepare(PrepareOperation::Remove(Some(ITEM), None))
+            .expect("remove operation should prepare");
+        assert_eq!(amount, 0, "removed amount was not max amount");
 
         // test slot cleanup
-        let mut inventory = SimpleInventory::new(Some(ITEM), 1);
+        let mut inventory = SimpleInventory::new(1);
         inventory.modify(ModifyOperation {
             item: ITEM,
             slot: *SLOT,
