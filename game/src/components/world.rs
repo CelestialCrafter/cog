@@ -1,19 +1,19 @@
 use std::iter::repeat_n;
 
-use cog_core::{runtime::RuntimeMessage, util::controls::ControlCluster, AppMessage, Model};
+use cog_core::{AppMessage, Model, runtime::RuntimeMessage, util::controls::ControlCluster};
 use crossterm::event::Event;
 use items::{Item, ZoomLevel};
-use ndarray::{s, Array2, Dim, NdIndex};
+use ndarray::{Array2, Dim, NdIndex, s};
 use rand::{
-    distr::{Distribution, StandardUniform},
     Rng,
+    distr::{Distribution, StandardUniform},
 };
 use ratatui::{
+    Frame,
     prelude::{Buffer, Rect},
     style::Style,
     text::Line,
     widgets::{Paragraph, Widget},
-    Frame,
 };
 
 use crate::{
@@ -68,11 +68,7 @@ impl Position {
                 ..0 => b.checked_sub(a.abs() as usize * multiplier)?,
             };
 
-            if v >= SIZE {
-                None
-            } else {
-                Some(v)
-            }
+            if v >= SIZE { None } else { Some(v) }
         };
 
         let direction: (isize, isize) = direction.into();

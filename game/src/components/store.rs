@@ -3,11 +3,9 @@ use std::{cell::RefCell, rc::Rc};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-use crate::components::world::{items::Item, World};
+use crate::components::world::{World, items::Item};
 
-use super::entity::{
-    player::player_builder, pod::pod_builder, pusher::pusher_builder, tunnel::tunnel_builder,
-};
+use super::entity::{player::player_builder, pod::pod_builder, tunnel::tunnel_builder};
 
 pub struct Store {
     pub rng: Xoshiro256PlusPlus,
@@ -50,9 +48,6 @@ impl Store {
                         ),
                         1 => {
                             Item::Tunnel(entities.spawn(tunnel_builder(rng.random(), pos).build()))
-                        }
-                        2 => {
-                            Item::Pusher(entities.spawn(pusher_builder(rng.random(), pos).build()))
                         }
                         _ => Item::Empty,
                     },
